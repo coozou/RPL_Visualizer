@@ -691,7 +691,7 @@ function renderFileList(fileArr, listId, btnIds) {
   });
   if(btnIds) btnIds.forEach(id => {
     const b = document.getElementById(id);
-    if(b && pyReady) b.disabled = fileArr.length === 0;
+    if(b) b.disabled = fileArr.length === 0;
   });
 }
 function removeFile(idx, listId) {
