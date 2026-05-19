@@ -811,7 +811,15 @@ function toDeg(deg, min, dir) {
 //  Find column by keyword
 // =============================================
 function findCol(rows, keywords, maxScan=10) {
+  // Pythonと同じ: 完全一致優先、見つからなければ部分一致
   const n = Math.min(maxScan, rows.length);
+  // 完全一致で探す
+  for(let c=0; c < (rows[0]||[]).length; c++) {
+    const texts = [];
+    for(let r=0;r<n;r++) { const v=rows[r]&&rows[r][c]; if(v!=null) texts.push(String(v).toLowerCase().trim()); }
+    if(keywords.every(kw => texts.some(t => t === kw))) return c;
+  }
+  // 部分一致でフォールバック
   for(let c=0; c < (rows[0]||[]).length; c++) {
     const texts = [];
     for(let r=0;r<n;r++) { const v=rows[r]&&rows[r][c]; if(v!=null) texts.push(String(v).toLowerCase().trim()); }
@@ -1050,14 +1058,14 @@ function extractMaxDepth(rows) {
   if(col===null) return {val:null, msg:'Approx Depth列が見つかりません'};
   const nums = rows.map(r=>r&&r[col]).map(parseNum).filter(v=>v!==null);
   if(!nums.length) return {val:null, msg:'数値なし'};
-  return {val: Math.max(...nums)};
+  return {val: Math.trunc(Math.max(...nums))};  // Python: int(max) と同じ
 }
 function extractMaxBurial(rows) {
   const col = findCol(rows, ['burial','depth']);
   if(col===null) return {val:null, msg:'Burial Depth列が見つかりません'};
   const nums = rows.map(r=>r&&r[col]).map(parseNum).filter(v=>v!==null&&v>=0);
   if(!nums.length) return {val:null, msg:'数値なし'};
-  return {val: Math.max(...nums)};
+  return {val: Math.round(Math.max(...nums)*1000)/1000};  // Python: round(max, 3)
 }
 
 function saveExtractCSV() {
@@ -1168,27 +1176,102 @@ async function drawDepthGraphs() {
   }
 }
 function buildGraphData(rows) {
-  const cableColHead = findCol(rows, ['cable distance']);
-  if(cableColHead===null) return null;
-  const cableCumCol = cableColHead+1;
-  const depthCol = findCol(rows, ['approx','depth']);
-  const burialCol = findCol(rows, ['burial','depth']);
+  // === Pythonオリジナルのdraw_graph関数と同じロジックで実装 ===
+  const maxScan = Math.min(10, rows.length);
+  const nCols = (rows[0]||[]).length;
+
+  // --- Cable Distance列を特定（"cable distance"を含む列の右隣） ---
+  let cableHeadCol = null;
+  outer1: for(let c=0; c<nCols; c++) {
+    for(let r=0; r<maxScan; r++) {
+      const v = rows[r]&&rows[r][c];
+      if(v!=null && String(v).toLowerCase().includes('cable distance')) {
+        cableHeadCol = c;
+        break outer1;
+      }
+    }
+  }
+  if(cableHeadCol===null) return null;
+  const cableCumCol = cableHeadCol + 1;  // 右隣がCumulative Total
+
+  // --- Burial Depth列: "burial"と"depth"が同列に存在 ---
+  let burialCol = null;
+  for(let c=0; c<nCols; c++) {
+    let hasBurial=false, hasDepth=false;
+    for(let r=0; r<maxScan; r++) {
+      const v = rows[r]&&rows[r][c];
+      if(v!=null && typeof v==='string') {
+        const t = v.toLowerCase();
+        if(t.includes('burial')) hasBurial=true;
+        if(t.includes('depth'))  hasDepth=true;
+      }
+    }
+    if(hasBurial && hasDepth) { burialCol=c; break; }
+  }
+
+  // --- Approx Depth列: "approx"と"depth"が同列に存在 ---
+  let depthCol = null;
+  for(let c=0; c<nCols; c++) {
+    if(c===burialCol) continue;  // burial列は除外
+    let hasApprox=false, hasDepth=false;
+    for(let r=0; r<maxScan; r++) {
+      const v = rows[r]&&rows[r][c];
+      if(v!=null && typeof v==='string') {
+        const t = v.toLowerCase();
+        if(t.includes('approx')) hasApprox=true;
+        if(t.includes('depth'))  hasDepth=true;
+      }
+    }
+    if(hasApprox && hasDepth) { depthCol=c; break; }
+  }
+
+  // --- Pythonの valid_idx 相当: Cable累積値がある行のインデックスを収集 ---
+  // Pythonと同じく re.search(r"[\d\.]+") 相当の数値抽出を行う
+  function extractNum(v) {
+    if(v==null) return null;
+    // Python: val.replace('−','-').replace('–','-') と同じ全角マイナス対応
+    const s = String(v).replace(/[−–]/g, '-').replace(/\s/g, '');
+    const m = s.match(/-?[\d]+(?:\.[\d]+)?/);
+    return m ? parseFloat(m[0]) : null;
+  }
+
+  const validIdx = [];
+  for(let r=0; r<rows.length; r++) {
+    const row = rows[r]; if(!row) continue;
+    const v = extractNum(row[cableCumCol]);
+    if(v!==null) validIdx.push(r);
+  }
+
+  // --- Python draw_graph と同じデータ抽出ロジック ---
   const cables=[], depths=[], burials=[], events=[];
   const kws = ['splice','repair','bight','cx'];
-  for(let r=0;r<rows.length;r++) {
-    const row = rows[r]; if(!row) continue;
-    const c = parseNum(row[cableCumCol]);
-    if(c===null) continue;
+
+  for(const i of validIdx) {
+    const row = rows[i];
+    const c = extractNum(row[cableCumCol]);
     cables.push(c);
-    depths.push(depthCol!==null ? parseNum(row[depthCol]) : null);
-    burials.push(burialCol!==null ? parseNum(row[burialCol]) : null);
-    if(depthCol!==null) {
-      const rowStr = row.map(v=>v!=null?String(v).toLowerCase():'').join(' ');
-      for(const kw of kws) {
-        if(rowStr.includes(kw)) {
-          events.push({x:c, y:parseNum(row[depthCol]), label:kw.toUpperCase()});
-          break;
-        }
+
+    // 水深: 同行になければ次行 (Pythonと同じ)
+    let depth = depthCol!==null ? extractNum(row[depthCol]) : null;
+    if(depth===null && depthCol!==null && i+1<rows.length) {
+      depth = extractNum(rows[i+1]&&rows[i+1][depthCol]);
+    }
+    depths.push(depth);
+
+    // 埋設: 同行になければ次行 (Pythonと同じ ★ここが核心)
+    let burial = burialCol!==null ? extractNum(row[burialCol]) : null;
+    if(burial===null && burialCol!==null && i+1<rows.length) {
+      burial = extractNum(rows[i+1]&&rows[i+1][burialCol]);
+    }
+    // 負値は除外 (Pythonの where(lambda z: z >= 0) 相当)
+    burials.push(burial!==null && burial>=0 ? burial : null);
+
+    // イベント検出 (行全体をスキャン)
+    const rowStr = row.map(v=>v!=null?String(v).toLowerCase():'').join(' ');
+    for(const kw of kws) {
+      if(rowStr.includes(kw)) {
+        events.push({x:c, y:depth, label:kw.toUpperCase()});
+        break;
       }
     }
   }
@@ -1279,28 +1362,58 @@ async function drawScatter() {
     if(!sheet) continue;
     try {
       const rows = await readXLSX(file, sheet, 0);
-      const cableCol = findCol(rows, ['cable distance']);
+      // Python準拠: cable distance列を特定（グラフと違い散布図はその列自体の値を使う）
+      let cableHeadCol = null;
+      for(let c=0;c<(rows[0]||[]).length;c++) {
+        for(let r=0;r<Math.min(10,rows.length);r++) {
+          const v=rows[r]&&rows[r][c];
+          if(v!=null&&String(v).toLowerCase().includes('cable distance')){cableHeadCol=c;break;}
+        }
+        if(cableHeadCol!==null) break;
+      }
+      // Python: cable_col列自体（散布図ではcable distance列の数値を重みに使う）
+      // ただしRPL構造上の数値は右隣(cumulative)にあるため+1
+      const cableCol = cableHeadCol!==null ? cableHeadCol+1 : null;
       const depthCol = findCol(rows, ['approx','depth']);
       const burialCol = findCol(rows, ['burial','depth']);
       if(cableCol===null||depthCol===null||burialCol===null) continue;
-      const candCable = cableCol+1;
+
+      function tryFloat(v) {
+        if(v==null) return null;
+        const s=String(v).replace(/[−–]/g,'-').replace(/\s/g,'');
+        const m=s.match(/-?[\d]+(?:\.[\d]+)?/);
+        const f=m?parseFloat(m[0]):null;
+        return (f===null||isNaN(f))?null:f;
+      }
+
       if(aggMode === 'weighted') {
+        // Python: weighted_depth_sum += depth * cable_length
         let wdSum=0, wbSum=0, totLen=0;
-        for(let r=0;r<rows.length;r++) {
+        for(let r=0;r<rows.length-1;r++) {
           const row=rows[r]; if(!row) continue;
-          const cl=parseNum(row[candCable]); if(cl===null) continue;
-          const d=parseNum(row[depthCol])||parseNum(rows[r+1]&&rows[r+1][depthCol]);
-          const b=parseNum(row[burialCol])||parseNum(rows[r+1]&&rows[r+1][burialCol]);
+          const cl=tryFloat(row[cableCol]); if(cl===null) continue;
+          // 同行→次行フォールバック（Python準拠）
+          let d=tryFloat(row[depthCol]);
+          if(d===null) d=tryFloat(rows[r+1]&&rows[r+1][depthCol]);
+          let b=tryFloat(row[burialCol]);
+          if(b===null) b=tryFloat(rows[r+1]&&rows[r+1][burialCol]);
           if(d===null||b===null) continue;
           wdSum+=d*cl; wbSum+=b*cl; totLen+=cl;
         }
         if(totLen===0) continue;
         pts.push({label:file.name.replace('.xlsx',''), depth:wdSum/totLen, burial:wbSum/totLen});
       } else {
+        // Python: max(valid_depths), max(valid_burials)
         const ds=[], bs=[];
-        for(const row of rows) {
-          const d=parseNum(row&&row[depthCol]); const b=parseNum(row&&row[burialCol]);
-          if(d!==null) ds.push(d); if(b!==null) bs.push(b);
+        for(let r=0;r<rows.length-1;r++) {
+          const row=rows[r]; if(!row) continue;
+          // 同行→次行フォールバック（Python準拠）
+          let d=tryFloat(row[depthCol]);
+          if(d===null) d=tryFloat(rows[r+1]&&rows[r+1][depthCol]);
+          let b=tryFloat(row[burialCol]);
+          if(b===null) b=tryFloat(rows[r+1]&&rows[r+1][burialCol]);
+          if(d!==null) ds.push(d);
+          if(b!==null) bs.push(b);
         }
         if(!ds.length||!bs.length) continue;
         pts.push({label:file.name.replace('.xlsx',''), depth:Math.max(...ds), burial:Math.max(...bs)});
