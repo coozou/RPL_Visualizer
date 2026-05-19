@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPL Visualizer Pro</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --bg2: #111827;
+    --bg3: #1a2235;
+    --border: #2a3a5c;
+    --accent: #1e6fff;
+    --accent2: #00c6ff;
+    --text: #e8edf8;
+    --text2: #8a9bc4;
+    --red: #e84040;
+    --green: #22d36a;
+    --amber: #f5a623;
+    --teal: #00b8c8;
+    --purple: #9b6fff;
+    --success-bg: #0d2a1a;
+    --error-bg: #2a0d0d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'BIZ UDゴシック', 'Noto Sans JP', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 13px;
+  }
+  /* ---- Header ---- */
+  .app-header {
+    background: linear-gradient(90deg, #0a0f1e 0%, #0d1e3d 50%, #0a0f1e 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky; top: 0; z-index: 1000;
+  }
+  .app-title { font-size: 17px; font-weight: 700; letter-spacing: 1px; color: var(--accent2); }
+  .app-version { font-size: 10px; color: var(--text2); padding: 2px 7px; border: 1px solid var(--border); border-radius: 4px; }
+  .pyodide-status {
+    margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2);
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--amber); animation: pulse 1.2s infinite;
+  }
+  .status-dot.ready { background: var(--green); animation: none; }
+  .status-dot.error { background: var(--red); animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ---- Layout ---- */
+  .app-body { display: flex; height: calc(100vh - 49px); }
+  .sidebar {
+    width: 220px; min-width: 220px; background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ---- Sidebar nav ---- */
+  .nav-section-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    color: var(--text2); padding: 14px 16px 4px; text-transform: uppercase;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; cursor: pointer; transition: background 0.15s;
+    border-left: 3px solid transparent; color: var(--text2); font-size: 12px;
+  }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: var(--bg3); color: var(--accent2); border-left-color: var(--accent2); }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+  .nav-badge {
+    margin-left: auto; font-size: 9px; padding: 1px 5px;
+    border-radius: 3px; background: var(--accent); color: white;
+  }
+  .nav-badge.disabled { background: #333; }
+  .sidebar-footer {
+    margin-top: auto; padding: 12px 16px; font-size: 10px; color: var(--text2);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ---- Panels ---- */
+  .panel { display: none; flex: 1; overflow-y: auto; padding: 20px; }
+  .panel.active { display: block; }
+  .panel-title { font-size: 15px; font-weight: 700; color: var(--accent2); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .panel-title .sub { font-size: 12px; font-weight: 400; color: var(--text2); margin-left: 4px; }
+
+  /* ---- Cards ---- */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 14px;
+  }
+  .card-title { font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ---- Form elements ---- */
+  .form-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .form-label { font-size: 11px; color: var(--text2); min-width: 90px; }
+  .form-input, .form-select {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 10px; border-radius: 5px; font-size: 12px; font-family: inherit;
+    outline: none; transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); }
+  .form-input { flex: 1; min-width: 0; }
+  .form-select { min-width: 100px; }
+
+  /* ---- File drop zone ---- */
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 20px;
+    text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 12px;
+    background: var(--bg3);
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent2); background: #0d1e2e; }
+  .drop-zone-icon { font-size: 28px; margin-bottom: 6px; opacity: 0.5; }
+  .drop-zone-text { color: var(--text2); font-size: 12px; }
+  .drop-zone-text span { color: var(--accent2); cursor: pointer; }
+  .file-list { margin-top: 8px; }
+  .file-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 5px;
+    margin-bottom: 4px; font-size: 11px;
+  }
+  .file-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-item-remove { color: var(--red); cursor: pointer; font-size: 14px; }
+
+  /* ---- Sheet selector ---- */
+  .sheet-selector { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .sheet-tag {
+    padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border);
+    cursor: pointer; font-size: 11px; color: var(--text2); background: var(--bg3); transition: all 0.15s;
+  }
+  .sheet-tag.selected { border-color: var(--accent2); color: var(--accent2); background: rgba(0,198,255,0.08); }
+
+  /* ---- Buttons ---- */
+  .btn {
+    padding: 8px 16px; border-radius: 5px; border: none; cursor: pointer;
+    font-size: 12px; font-family: inherit; font-weight: 600; letter-spacing: 0.3px;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #1a5fe0; }
+  .btn-primary:disabled { background: #1a2e50; color: var(--text2); cursor: not-allowed; }
+  .btn-success { background: #0d4a25; color: var(--green); border: 1px solid #155c2e; }
+  .btn-success:hover { background: #0f5a2e; }
+  .btn-danger { background: #3a0d0d; color: var(--red); border: 1px solid #5a1515; }
+  .btn-danger:hover { background: #4a1010; }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--bg3); color: var(--text); }
+  .btn-amber { background: #3a2400; color: var(--amber); border: 1px solid #5a3a00; }
+  .btn-amber:hover { background: #4a2e00; }
+  .btn-teal { background: #00252b; color: var(--teal); border: 1px solid #00404a; }
+  .btn-teal:hover { background: #003040; }
+  .btn-purple { background: #1e0f40; color: var(--purple); border: 1px solid #3a1e6e; }
+  .btn-purple:hover { background: #280f50; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+  /* ---- Output log ---- */
+  .output-log {
+    background: #050a10; border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; font-family: 'Courier New', monospace; font-size: 11px;
+    color: #7aff9a; min-height: 80px; max-height: 220px; overflow-y: auto;
+    white-space: pre-wrap; margin-top: 10px;
+  }
+  .log-error { color: var(--red); }
+  .log-warn { color: var(--amber); }
+  .log-info { color: var(--accent2); }
+  .log-success { color: var(--green); }
+
+  /* ---- Progress bar ---- */
+  .progress-bar {
+    height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin: 8px 0;
+  }
+  .progress-bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.3s; border-radius: 2px;
+  }
+
+  /* ---- Map ---- */
+  #map-container { height: 420px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+
+  /* ---- Charts ---- */
+  .chart-wrap { position: relative; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+  .chart-wrap canvas { max-width: 100%; }
+  .chart-title { font-size: 11px; color: var(--text2); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ---- Results table ---- */
+  .result-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .result-table th { background: var(--bg3); color: var(--text2); padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .result-table td { padding: 6px 10px; border-bottom: 1px solid rgba(42,58,92,0.4); color: var(--text); }
+  .result-table tr:hover td { background: rgba(30,111,255,0.04); }
+  .result-table .num { text-align: right; font-family: 'Courier New', monospace; color: var(--accent2); }
+
+  /* ---- Download buttons ---- */
+  .download-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .dl-btn {
+    padding: 5px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg3); color: var(--text2);
+    font-family: inherit; transition: all 0.15s;
+  }
+  .dl-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ---- Overlay/Modal ---- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 2000;
+    display: none; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px; min-width: 340px; max-width: 500px;
+  }
+  .modal-title { font-size: 14px; font-weight: 700; color: var(--accent2); margin-bottom: 14px; }
+
+  /* ---- KML settings ---- */
+  .kml-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* ---- Scatter plot size ---- */
+  #scatter-canvas { max-height: 400px; }
+
+  /* ---- Intro banner ---- */
+  .intro-banner {
+    background: linear-gradient(135deg, #0d1e3d 0%, #0a1528 100%);
+    border: 1px solid var(--border); border-radius: 8px; padding: 20px;
+    margin-bottom: 16px; display: flex; gap: 16px; align-items: flex-start;
+  }
+  .intro-banner-icon { font-size: 32px; flex-shrink: 0; }
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 12px; }
+  .feature-card {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .feature-card:hover { border-color: var(--accent2); }
+  .feature-card-icon { font-size: 18px; width: 24px; text-align: center; }
+  .feature-card-text { font-size: 12px; color: var(--text); }
+  .feature-card-sub { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+  /* ---- Options modal radio ---- */
+  .radio-group { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+  .radio-item {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    padding: 8px 12px; border-radius: 5px; border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .radio-item:hover { border-color: var(--accent2); }
+  .radio-item input { accent-color: var(--accent2); }
+  .radio-item.selected { border-color: var(--accent2); background: rgba(0,198,255,0.06); }
+
+  /* ---- Config recall badge ---- */
+  .config-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 3px;
+    background: rgba(155,111,255,0.15); color: var(--purple); border: 1px solid rgba(155,111,255,0.3);
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a4f7a; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="app-header">
+  <div class="app-title">⚓ RPL Visualizer Pro</div>
+  <div class="app-version">Ver 8.4 — Web Edition</div>
+  <div class="pyodide-status">
+    <div class="status-dot" id="py-dot"></div>
+    <span id="py-status">Python 初期化中...</span>
+  </div>
+</header>
+
+<div class="app-body">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="nav-section-title">メイン機能</div>
+    <div class="nav-item active" data-panel="home" onclick="switchPanel('home',this)">
+      <span class="nav-icon">🏠</span> ホーム
+    </div>
+    <div class="nav-item" data-panel="kml" onclick="switchPanel('kml',this)">
+      <span class="nav-icon">📍</span> KMLファイル作成
+    </div>
+    <div class="nav-item" data-panel="extract" onclick="switchPanel('extract',this)">
+      <span class="nav-icon">📊</span> データ抽出
+    </div>
+    <div class="nav-section-title">可視化</div>
+    <div class="nav-item" data-panel="routemap" onclick="switchPanel('routemap',this)">
+      <span class="nav-icon">🗺️</span> ルートMAP
+    </div>
+    <div class="nav-item" data-panel="depthgraph" onclick="switchPanel('depthgraph',this)">
+      <span class="nav-icon">📈</span> 水深・埋設グラフ
+    </div>
+    <div class="nav-item" data-panel="scatter" onclick="switchPanel('scatter',this)">
+      <span class="nav-icon">🔵</span> 水深・埋設散布図
+    </div>
+    <div class="nav-section-title">ツール</div>
+    <div class="nav-item" data-panel="xlsinfo" onclick="switchPanel('xlsinfo',this)">
+      <span class="nav-icon">⚠️</span> Excelバージョン変換
+      <span class="nav-badge disabled">要PC</span>
+    </div>
+    <div class="sidebar-footer">
+      Developed by: Shino<br>Web版: Claude HTML
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+
+    <!-- HOME -->
+    <div class="panel active" id="panel-home">
+      <div class="panel-title">🏠 RPL Visualizer Pro <span class="sub">— Web Edition</span></div>
+      <div class="intro-banner">
+        <div class="intro-banner-icon">⚓</div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--accent2);margin-bottom:6px;">RPLデータ解析ツール — ブラウザ版</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.7;">
+            海底ケーブルの敷設記録（RPL）ファイルを読み込み、KML変換・データ抽出・地図表示・グラフ描画を行います。<br>
+            <strong style="color:var(--amber);">※ .xlsxファイルのみ対応（.xlsは事前にExcelで変換してください）</strong>
+          </div>
+        </div>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card" onclick="switchPanel('kml',document.querySelector('[data-panel=kml]'))">
+          <span class="feature-card-icon">📍</span>
+          <div><div class="feature-card-text">KMLファイル作成</div><div class="feature-card-sub">Googleマップ用ルートファイル</div></div>
+        </div>
+        <div class="feature-card" onclick="switchPanel('extract',document.querySelector('[data-panel=extract]'))">
+          <span class="feature-card-icon">📊</span>
+          <div><div class="feature-card-text">データ抽出</div><div class="feature-card-sub">ケーブル長・水深・埋設深度</div></div>
+        </div>
+        <div class="feature-card" onclick="switchPanel('routemap',document.querySelector('[data-panel=routemap]'))">
+          <span class="feature-card-icon">🗺️</span>
+          <div><div class="feature-card-text">ルートMAP</div><div class="feature-card-sub">Leaflet地図上にルート表示</div></div>
+        </div>
+        <div class="feature-card" onclick="switchPanel('depthgraph',document.querySelector('[data-panel=depthgraph]'))">
+          <span class="feature-card-icon">📈</span>
+          <div><div class="feature-card-text">水深・埋設グラフ</div><div class="feature-card-sub">ケーブル距離別断面図</div></div>
+        </div>
+        <div class="feature-card" onclick="switchPanel('scatter',document.querySelector('[data-panel=scatter]'))">
+          <span class="feature-card-icon">🔵</span>
+          <div><div class="feature-card-text">散布図作成</div><div class="feature-card-sub">加重平均/最大値プロット</div></div>
+        </div>
+        <div class="feature-card" onclick="switchPanel('xlsinfo',document.querySelector('[data-panel=xlsinfo]'))">
+          <span class="feature-card-icon">⚠️</span>
+          <div><div class="feature-card-text">Excel変換（要PC）</div><div class="feature-card-sub">.xlsはPCアプリで変換</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KML -->
+    <div class="panel" id="panel-kml">
+      <div class="panel-title">📍 KMLファイル作成</div>
+      <div class="card">
+        <div class="card-title">ファイル選択</div>
+        <div class="drop-zone" id="kml-drop" onclick="document.getElementById('kml-file-input').click()">
+          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-text">.xlsxファイルをドロップ、または<span>クリックして選択</span></div>
+        </div>
+        <input type="file" id="kml-file-input" accept=".xlsx" multiple style="display:none">
+        <div class="file-list" id="kml-file-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          KML設定 <span class="config-badge" id="config-badge" style="display:none">前回設定読込済</span>
+        </div>
+        <div class="kml-grid">
+          <div>
+            <div class="form-row"><span class="form-label">ラインの色</span>
+              <select class="form-select" id="kml-line-color">
+                <option value="ffff55ff">ピンク</option><option value="ff0000ff">赤</option>
+                <option value="ffff0000">青</option><option value="ff00ff00">緑</option>
+                <option value="ff00ffff">黄</option><option value="ffff00ff">紫</option>
+                <option value="ff008cff">オレンジ</option><option value="ffffff00">水色</option>
+                <option value="ff808080">灰色</option><option value="ffffffff">白</option>
+              </select>
+            </div>
+            <div class="form-row"><span class="form-label">ラインの太さ</span>
+              <select class="form-select" id="kml-line-width">
+                <option>1.0</option><option>2.0</option><option>3.0</option>
+                <option>4.0</option><option>5.0</option>
+              </select>
+            </div>
+            <div class="form-row"><span class="form-label">アイコン種類</span>
+              <select class="form-select" id="kml-icon-type">
+                <option value="http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png">丸</option>
+                <option value="http://maps.google.com/mapfiles/kml/shapes/placemark_square.png">四角</option>
+                <option value="https://maps.google.com/mapfiles/kml/shapes/arrow.png">矢印</option>
+                <option value="https://maps.google.com/mapfiles/kml/pushpin/wht-pushpin.png">ピンマーク</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div class="form-row"><span class="form-label">アイコンサイズ</span>
+              <select class="form-select" id="kml-icon-size">
+                <option>0</option><option>0.5</option><option selected>1.0</option><option>1.5</option><option>2.0</option>
+              </select>
+            </div>
+            <div class="form-row"><span class="form-label">アイコンの色</span>
+              <select class="form-select" id="kml-icon-color">
+                <option>白</option><option>黄色</option><option>ピンク</option><option>水色</option>
+              </select>
+            </div>
+            <div class="form-row"><span class="form-label">ラベルサイズ</span>
+              <select class="form-select" id="kml-label-size">
+                <option selected>0</option><option>0.5</option><option>1.0</option><option>1.5</option><option>2.0</option>
+              </select>
+            </div>
+            <div class="form-row"><span class="form-label">ラベルの色</span>
+              <select class="form-select" id="kml-label-color">
+                <option>白</option><option>黄色</option><option>ピンク</option><option>水色</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="runKML()" id="kml-run-btn" disabled>▶ 実行</button>
+          <button class="btn btn-purple" onclick="recallConfig()">📂 前回の設定を呼び出す</button>
+          <button class="btn btn-ghost" onclick="clearLog('kml-log')">ログクリア</button>
+        </div>
+        <div class="output-log" id="kml-log">待機中...</div>
+      </div>
+    </div>
+
+    <!-- EXTRACT -->
+    <div class="panel" id="panel-extract">
+      <div class="panel-title">📊 データ抽出</div>
+      <div class="card">
+        <div class="card-title">ファイル選択</div>
+        <div class="drop-zone" id="ext-drop" onclick="document.getElementById('ext-file-input').click()">
+          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-text">.xlsxファイルをドロップ、または<span>クリックして選択</span></div>
+        </div>
+        <input type="file" id="ext-file-input" accept=".xlsx" multiple style="display:none">
+        <div class="file-list" id="ext-file-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">抽出種別</div>
+        <div class="btn-row">
+          <button class="btn btn-success" onclick="runExtract('cable')" id="ext-cable-btn" disabled>📏 ケーブル長抽出</button>
+          <button class="btn btn-teal" onclick="runExtract('depth')" id="ext-depth-btn" disabled>🌊 最大水深抽出</button>
+          <button class="btn btn-amber" onclick="runExtract('burial')" id="ext-burial-btn" disabled>⛏ 最大埋設深度</button>
+          <button class="btn btn-ghost" onclick="saveExtractCSV()">💾 ログCSV保存</button>
+          <button class="btn btn-ghost" onclick="clearLog('ext-log')">ログクリア</button>
+        </div>
+        <div class="output-log" id="ext-log">ファイルを選択してください...</div>
+        <div id="ext-results-table-wrap" style="margin-top:12px;display:none">
+          <table class="result-table" id="ext-results-table">
+            <thead><tr><th>ファイル名</th><th>シート</th><th>種別</th><th class="num">抽出値</th></tr></thead>
+            <tbody id="ext-results-tbody"></tbody>
+          </table>
+          <div class="download-row">
+            <button class="dl-btn" onclick="saveExtractCSV()">⬇ CSV保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROUTE MAP -->
+    <div class="panel" id="panel-routemap">
+      <div class="panel-title">🗺️ ルートMAP <span class="sub">— Leaflet.js (OpenStreetMap)</span></div>
+      <div class="card">
+        <div class="card-title">ファイル選択</div>
+        <div class="drop-zone" id="map-drop" onclick="document.getElementById('map-file-input').click()">
+          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-text">.xlsxファイルをドロップ、または<span>クリックして選択</span></div>
+        </div>
+        <input type="file" id="map-file-input" accept=".xlsx" multiple style="display:none">
+        <div class="file-list" id="map-file-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">マップ設定</div>
+        <div class="form-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="map-show-labels" checked style="accent-color:var(--accent2)"> ファイル名ラベル表示
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="map-show-markers" checked style="accent-color:var(--accent2)"> ウェイポイントマーカー
+          </label>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="drawRouteMap()" id="map-run-btn" disabled>🗺 マップ描画</button>
+          <button class="btn btn-ghost" onclick="clearMap()">クリア</button>
+        </div>
+      </div>
+      <div id="map-container"></div>
+      <div class="output-log" id="map-log" style="margin-top:10px;min-height:40px;">待機中...</div>
+    </div>
+
+    <!-- DEPTH GRAPH -->
+    <div class="panel" id="panel-depthgraph">
+      <div class="panel-title">📈 水深・埋設グラフ</div>
+      <div class="card">
+        <div class="card-title">ファイル選択</div>
+        <div class="drop-zone" id="graph-drop" onclick="document.getElementById('graph-file-input').click()">
+          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-text">.xlsxファイルをドロップ、または<span>クリックして選択</span></div>
+        </div>
+        <input type="file" id="graph-file-input" accept=".xlsx" multiple style="display:none">
+        <div class="file-list" id="graph-file-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">グラフ設定</div>
+        <div class="form-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="graph-sync-depth" checked style="accent-color:var(--accent2)"> 全ファイルで水深軸を統一
+          </label>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="drawDepthGraphs()" id="graph-run-btn" disabled>📈 グラフ描画</button>
+          <button class="btn btn-ghost" onclick="clearGraphs()">グラフクリア</button>
+          <button class="btn btn-ghost" onclick="saveAllGraphs()">⬇ PNG保存</button>
+        </div>
+      </div>
+      <div id="graph-charts-wrap"></div>
+    </div>
+
+    <!-- SCATTER -->
+    <div class="panel" id="panel-scatter">
+      <div class="panel-title">🔵 水深・埋設散布図</div>
+      <div class="card">
+        <div class="card-title">ファイル選択</div>
+        <div class="drop-zone" id="scatter-drop" onclick="document.getElementById('scatter-file-input').click()">
+          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-text">.xlsxファイルをドロップ、または<span>クリックして選択</span></div>
+        </div>
+        <input type="file" id="scatter-file-input" accept=".xlsx" multiple style="display:none">
+        <div class="file-list" id="scatter-file-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">集計方法</div>
+        <div style="display:flex;gap:12px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="radio" name="agg-mode" value="weighted" checked style="accent-color:var(--accent2)"> 加重平均
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="radio" name="agg-mode" value="max" style="accent-color:var(--accent2)"> 最大値
+          </label>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="drawScatter()" id="scatter-run-btn" disabled>🔵 散布図描画</button>
+          <button class="btn btn-ghost" onclick="saveScatter()">⬇ PNG保存</button>
+        </div>
+      </div>
+      <div id="scatter-charts-wrap"></div>
+    </div>
+
+    <!-- XLS INFO -->
+    <div class="panel" id="panel-xlsinfo">
+      <div class="panel-title">⚠️ Excelバージョン変換について</div>
+      <div class="card">
+        <div style="font-size:13px;color:var(--text2);line-height:1.8;">
+          <p style="color:var(--amber);font-weight:700;margin-bottom:10px;">
+            ⚠ .xls（Excel 97-2003形式）はブラウザ版では変換できません
+          </p>
+          <p style="margin-bottom:10px;">このツールは <code style="background:var(--bg3);padding:2px 6px;border-radius:3px;">.xlsx</code> 形式のみ対応しています。</p>
+          <p style="margin-bottom:10px;">.xlsファイルをお持ちの場合は、以下の手順で変換してください：</p>
+          <ol style="padding-left:20px;line-height:2;">
+            <li>ExcelまたはLibreOfficeで.xlsファイルを開く</li>
+            <li>「名前を付けて保存」→「Excelブック(.xlsx)」を選択</li>
+            <li>保存した.xlsxファイルをこのツールで使用</li>
+          </ol>
+          <p style="margin-top:14px;color:var(--text2);">
+            デスクトップ版（PCインストール版）では xlwings を使用した自動変換が可能です。
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /app-body -->
+
+<!-- Sheet Selector Modal -->
+<div class="modal-overlay" id="sheet-modal">
+  <div class="modal">
+    <div class="modal-title">📋 シートを選択してください</div>
+    <div id="sheet-modal-filename" style="font-size:11px;color:var(--text2);margin-bottom:10px;"></div>
+    <div id="sheet-modal-list" class="sheet-selector"></div>
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="confirmSheetSelection()">OK</button>
+      <button class="btn btn-ghost" onclick="closeSheetModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================
+//  Global state
+// =============================================
+let pyodide = null;
+let pyReady = false;
+const kmlFiles = [];
+const extFiles = [];
+const mapFiles = [];
+const graphFiles = [];
+const scatterFiles = [];
+const extractResults = [];
+let mapInstance = null;
+let mapLayers = [];
+const depthCharts = [];
+let scatterChart1 = null, scatterChart2 = null;
+let savedConfig = null;
+
+// Sheet modal state
+let sheetModalResolve = null;
+let sheetModalFiles = [];
+let sheetModalCurrentIdx = 0;
+let sheetModalResults = [];
+
+// =============================================
+//  Pyodide init
+// =============================================
+async function initPyodide() {
+  try {
+    updateStatus('loading', 'Python読込中...');
+    pyodide = await loadPyodide();
+    updateStatus('loading', 'パッケージインストール中...');
+    await pyodide.loadPackage(['micropip', 'openpyxl', 'pandas', 'numpy']);
+    pyReady = true;
+    updateStatus('ready', 'Python 準備完了');
+    enableAllButtons();
+  } catch(e) {
+    updateStatus('error', 'Python初期化失敗: ' + e.message);
+  }
+}
+function updateStatus(state, msg) {
+  const dot = document.getElementById('py-dot');
+  const txt = document.getElementById('py-status');
+  dot.className = 'status-dot' + (state==='ready' ? ' ready' : state==='error' ? ' error' : '');
+  txt.textContent = msg;
+}
+function enableAllButtons() {
+  ['kml-run-btn','ext-cable-btn','ext-depth-btn','ext-burial-btn','map-run-btn','graph-run-btn','scatter-run-btn']
+    .forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
+}
+
+// =============================================
+//  Navigation
+// =============================================
+function switchPanel(id, navEl) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  if(navEl) navEl.classList.add('active');
+  if(id === 'routemap' && !mapInstance) initMap();
+}
+
+// =============================================
+//  File handling helpers
+// =============================================
+function setupDropZone(dropId, inputId, fileArr, listId, btnIds) {
+  const drop = document.getElementById(dropId);
+  const input = document.getElementById(inputId);
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('dragover');
+    handleFiles(Array.from(e.dataTransfer.files), fileArr, listId, btnIds);
+  });
+  input.addEventListener('change', () => {
+    handleFiles(Array.from(input.files), fileArr, listId, btnIds);
+    input.value = '';
+  });
+}
+function handleFiles(files, fileArr, listId, btnIds) {
+  files.filter(f => f.name.endsWith('.xlsx')).forEach(f => {
+    if(!fileArr.find(x => x.name === f.name)) fileArr.push(f);
+  });
+  renderFileList(fileArr, listId, btnIds);
+}
+function renderFileList(fileArr, listId, btnIds) {
+  const list = document.getElementById(listId);
+  list.innerHTML = '';
+  fileArr.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.innerHTML = `<span style="color:var(--accent2);font-size:12px;">📄</span>
+      <span class="file-item-name">${f.name}</span>
+      <span class="file-item-remove" onclick="removeFile(${i},'${listId}')">✕</span>`;
+    list.appendChild(div);
+  });
+  if(btnIds) btnIds.forEach(id => {
+    const b = document.getElementById(id);
+    if(b && pyReady) b.disabled = fileArr.length === 0;
+  });
+}
+function removeFile(idx, listId) {
+  const map = {
+    'kml-file-list': [kmlFiles, ['kml-run-btn']],
+    'ext-file-list': [extFiles, ['ext-cable-btn','ext-depth-btn','ext-burial-btn']],
+    'map-file-list': [mapFiles, ['map-run-btn']],
+    'graph-file-list': [graphFiles, ['graph-run-btn']],
+    'scatter-file-list': [scatterFiles, ['scatter-run-btn']]
+  };
+  const [arr, btns] = map[listId];
+  arr.splice(idx, 1);
+  renderFileList(arr, listId, btns);
+}
+
+// =============================================
+//  Read xlsx with SheetJS
+// =============================================
+async function readXLSX(file, sheetName, skipRows=0) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const sheet = sheetName ? wb.Sheets[sheetName] : wb.Sheets[wb.SheetNames[0]];
+        if(!sheet) { reject('シートが見つかりません'); return; }
+        const data = XLSX.utils.sheet_to_json(sheet, {header:1, defval:null});
+        resolve(skipRows > 0 ? data.slice(skipRows) : data);
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+async function getSheetNames(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        resolve(wb.SheetNames);
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// =============================================
+//  Sheet Modal
+// =============================================
+function showSheetModal(fileName, sheets) {
+  return new Promise(resolve => {
+    sheetModalResolve = resolve;
+    document.getElementById('sheet-modal-filename').textContent = fileName;
+    const list = document.getElementById('sheet-modal-list');
+    list.innerHTML = '';
+    sheets.forEach((s, i) => {
+      const tag = document.createElement('div');
+      tag.className = 'sheet-tag' + (s.toUpperCase().includes('RPL') ? ' selected' : (i===0?' selected':''));
+      tag.textContent = s;
+      tag.onclick = () => {
+        list.querySelectorAll('.sheet-tag').forEach(t => t.classList.remove('selected'));
+        tag.classList.add('selected');
+      };
+      list.appendChild(tag);
+    });
+    document.getElementById('sheet-modal').classList.add('open');
+  });
+}
+function confirmSheetSelection() {
+  const selected = document.querySelector('#sheet-modal-list .sheet-tag.selected');
+  document.getElementById('sheet-modal').classList.remove('open');
+  if(sheetModalResolve) sheetModalResolve(selected ? selected.textContent : null);
+}
+function closeSheetModal() {
+  document.getElementById('sheet-modal').classList.remove('open');
+  if(sheetModalResolve) sheetModalResolve(null);
+}
+async function selectSheetForFile(file) {
+  const sheets = await getSheetNames(file);
+  if(sheets.length === 1) return sheets[0];
+  return await showSheetModal(file.name, sheets);
+}
+
+// =============================================
+//  Log helpers
+// =============================================
+function appendLog(logId, msg, cls='') {
+  const el = document.getElementById(logId);
+  const span = document.createElement('span');
+  span.className = cls;
+  span.textContent = msg + '\n';
+  if(el.textContent === '待機中...' || el.textContent === 'ファイルを選択してください...') el.textContent = '';
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog(id) { document.getElementById(id).textContent = ''; }
+function setLog(logId, msg, cls='') {
+  const el = document.getElementById(logId);
+  el.textContent = '';
+  appendLog(logId, msg, cls);
+}
+
+// =============================================
+//  Coord conversion
+// =============================================
+function toDeg(deg, min, dir) {
+  const d = parseFloat(deg), m = parseFloat(min);
+  if(isNaN(d)||isNaN(m)) return null;
+  let v = d + m/60;
+  if(dir==='S'||dir==='W') v *= -1;
+  return v;
+}
+
+// =============================================
+//  Find column by keyword
+// =============================================
+function findCol(rows, keywords, maxScan=10) {
+  const n = Math.min(maxScan, rows.length);
+  for(let c=0; c < (rows[0]||[]).length; c++) {
+    const texts = [];
+    for(let r=0;r<n;r++) { const v=rows[r]&&rows[r][c]; if(v!=null) texts.push(String(v).toLowerCase().trim()); }
+    if(keywords.every(kw => texts.some(t => t.includes(kw)))) return c;
+  }
+  return null;
+}
+function findLatLonCols(rows) {
+  let lat=null, lon=null;
+  const n = Math.min(10, rows.length);
+  for(let c=0; c<(rows[0]||[]).length; c++) {
+    for(let r=0;r<n;r++) {
+      const v = rows[r]&&rows[r][c]; if(!v) continue;
+      const s = String(v).toLowerCase().trim();
+      if(s.includes('latitude') && lat===null) lat=c;
+      if(s.includes('longitude') && lon===null) lon=c;
+    }
+  }
+  return {lat, lon};
+}
+function parseNum(v) {
+  if(v==null) return null;
+  const n = parseFloat(String(v).replace(/[^\d.\-]/g,''));
+  return isNaN(n) ? null : n;
+}
+
+// =============================================
+//  Extract lat/lon data from rows
+// =============================================
+function extractLatLon(rows) {
+  const {lat, lon} = findLatLonCols(rows);
+  if(lat===null||lon===null) return null;
+  const lats=[], lons=[];
+  for(const row of rows) {
+    const la = toDeg(row[lat], row[lat+1], row[lat+2]);
+    const lo = toDeg(row[lon], row[lon+1], row[lon+2]);
+    if(la!==null&&lo!==null&&!isNaN(la)&&!isNaN(lo)) { lats.push(la); lons.push(lo); }
+  }
+  return lats.length ? {lats, lons} : null;
+}
+
+// =============================================
+//  KML generation
+// =============================================
+const COLOR_MAP = {
+  '白':'ffffffff','黄色':'ff00ffff','ピンク':'ffffaaff','水色':'ffffff00'
+};
+function generateKML(rows, lineColor, lineWidth, iconUrl, iconSize, iconColor, labelSize, labelColor) {
+  const {lat, lon} = findLatLonCols(rows);
+  if(lat===null||lon===null) return {ok:false, msg:'緯度・経度列が見つかりません'};
+  // Find event col
+  let evCol=null;
+  for(let c=0;c<(rows[0]||[]).length;c++) {
+    for(let r=0;r<Math.min(10,rows.length);r++) {
+      const v=rows[r]&&rows[r][c]; if(!v) continue;
+      if(String(v).toLowerCase().includes('event')){ evCol=c; break; }
+    }
+    if(evCol!==null) break;
+  }
+  const coords=[];
+  const placemarks=[];
+  for(const row of rows) {
+    const la = toDeg(row[lat], row[lat+1], row[lat+2]);
+    const lo = toDeg(row[lon], row[lon+1], row[lon+2]);
+    if(la===null||lo===null||isNaN(la)||isNaN(lo)) continue;
+    const name = evCol!==null&&row[evCol]!=null ? String(row[evCol]) : '';
+    coords.push(`${lo},${la},0`);
+    if(name) placemarks.push(`  <Placemark><name>${escXml(name)}</name><styleUrl>#pt</styleUrl><Point><coordinates>${lo},${la},0</coordinates></Point></Placemark>`);
+  }
+  if(!coords.length) return {ok:false, msg:'有効な座標データが見つかりません'};
+  const ic = COLOR_MAP[iconColor]||'ffffffff';
+  const lc = COLOR_MAP[labelColor]||'ffffffff';
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<Style id="pt"><IconStyle><scale>${iconSize}</scale><color>${ic}</color><Icon><href>${iconUrl}</href></Icon></IconStyle><LabelStyle><scale>${labelSize}</scale><color>${lc}</color></LabelStyle></Style>\n<Style id="ln"><LineStyle><color>${lineColor}</color><width>${lineWidth}</width></LineStyle></Style>\n${placemarks.join('\n')}\n  <Placemark><name>Route Line</name><styleUrl>#ln</styleUrl><LineString><tessellate>1</tessellate><coordinates>${coords.join(' ')}</coordinates></LineString></Placemark>\n</Document>\n</kml>`;
+  return {ok:true, kml};
+}
+function escXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function downloadText(text, filename) {
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/xml'}));
+  a.download=filename; a.click();
+}
+function downloadCSV(text, filename) {
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\uFEFF'+text],{type:'text/csv'}));
+  a.download=filename; a.click();
+}
+
+async function runKML() {
+  if(!kmlFiles.length) return;
+  clearLog('kml-log');
+  appendLog('kml-log', `=== KML作成開始 (${kmlFiles.length}ファイル) ===`,'log-info');
+  saveConfig();
+  const lineColor = document.getElementById('kml-line-color').value;
+  const lineWidth = document.getElementById('kml-line-width').value;
+  const iconUrl = document.getElementById('kml-icon-type').value;
+  const iconSize = document.getElementById('kml-icon-size').value;
+  const iconColor = document.getElementById('kml-icon-color').value;
+  const labelSize = document.getElementById('kml-label-size').value;
+  const labelColor = document.getElementById('kml-label-color').value;
+  for(const file of kmlFiles) {
+    const sheet = await selectSheetForFile(file);
+    if(!sheet) { appendLog('kml-log', `スキップ: ${file.name} (シート未選択)`,'log-warn'); continue; }
+    try {
+      const rows = await readXLSX(file, sheet, 5);
+      const result = generateKML(rows, lineColor, lineWidth, iconUrl, iconSize, iconColor, labelSize, labelColor);
+      if(result.ok) {
+        const fname = file.name.replace('.xlsx','.kml');
+        downloadText(result.kml, fname);
+        appendLog('kml-log', `✔ KML作成成功: ${fname}`, 'log-success');
+      } else {
+        appendLog('kml-log', `✘ エラー (${file.name}): ${result.msg}`, 'log-error');
+      }
+    } catch(e) {
+      appendLog('kml-log', `✘ 例外 (${file.name}): ${e}`, 'log-error');
+    }
+  }
+  appendLog('kml-log', '=== 完了 ===', 'log-info');
+}
+
+// =============================================
+//  Config save/recall (localStorage)
+// =============================================
+function saveConfig() {
+  const cfg = {
+    line_color: document.getElementById('kml-line-color').value,
+    line_width: document.getElementById('kml-line-width').value,
+    icon_type: document.getElementById('kml-icon-type').value,
+    icon_size: document.getElementById('kml-icon-size').value,
+    icon_color: document.getElementById('kml-icon-color').value,
+    label_size: document.getElementById('kml-label-size').value,
+    label_color: document.getElementById('kml-label-color').value
+  };
+  try { localStorage.setItem('kml_config', JSON.stringify(cfg)); } catch(e) { savedConfig = cfg; }
+}
+function recallConfig() {
+  let cfg = null;
+  try { const s = localStorage.getItem('kml_config'); if(s) cfg = JSON.parse(s); } catch(e) {}
+  if(!cfg) cfg = savedConfig;
+  if(!cfg) { appendLog('kml-log', '前回の設定が見つかりません', 'log-warn'); return; }
+  setSelectValue('kml-line-color', cfg.line_color);
+  setSelectValue('kml-line-width', cfg.line_width);
+  setSelectValue('kml-icon-type', cfg.icon_type);
+  setSelectValue('kml-icon-size', cfg.icon_size);
+  setSelectValue('kml-icon-color', cfg.icon_color);
+  setSelectValue('kml-label-size', cfg.label_size);
+  setSelectValue('kml-label-color', cfg.label_color);
+  document.getElementById('config-badge').style.display = 'inline';
+  appendLog('kml-log', '前回の設定を反映しました', 'log-success');
+}
+function setSelectValue(id, val) {
+  const el = document.getElementById(id);
+  if(!el||!val) return;
+  for(const opt of el.options) if(opt.value===val||opt.text===val) { el.value=opt.value; break; }
+}
+
+// =============================================
+//  Data extraction
+// =============================================
+async function runExtract(type) {
+  if(!extFiles.length) return;
+  clearLog('ext-log');
+  const tbody = document.getElementById('ext-results-tbody');
+  tbody.innerHTML = '';
+  const label = type==='cable'?'ケーブル長':type==='depth'?'最大水深':'最大埋設深度';
+  appendLog('ext-log', `=== ${label}抽出開始 ===`, 'log-info');
+  let total = 0; let count = 0;
+  for(const file of extFiles) {
+    const sheet = await selectSheetForFile(file);
+    if(!sheet) { appendLog('ext-log', `スキップ: ${file.name}`, 'log-warn'); continue; }
+    try {
+      const rows = await readXLSX(file, sheet, 0);
+      let val = null, msg = '';
+      if(type==='cable') {
+        const r = extractCableDistance(rows);
+        val = r.val; msg = r.msg;
+      } else if(type==='depth') {
+        const r = extractMaxDepth(rows);
+        val = r.val; msg = r.msg;
+      } else {
+        const r = extractMaxBurial(rows);
+        val = r.val; msg = r.msg;
+      }
+      if(val !== null) {
+        total += val; count++;
+        const disp = type==='burial' ? val.toFixed(3) : val;
+        appendLog('ext-log', `  ${file.name} [${sheet}] → ${disp}`, 'log-success');
+        extractResults.push({file:file.name, sheet, type:label, value:val});
+        addResultRow(tbody, file.name, sheet, label, disp);
+      } else {
+        appendLog('ext-log', `  ${file.name} [${sheet}]: ${msg}`, 'log-warn');
+        addResultRow(tbody, file.name, sheet, label, msg);
+      }
+    } catch(e) {
+      appendLog('ext-log', `  ✘ ${file.name}: ${e}`, 'log-error');
+    }
+  }
+  if(type==='cable' && count > 1) appendLog('ext-log', `◎ 合計ケーブル長: ${total.toFixed(3)} km`, 'log-success');
+  appendLog('ext-log', '=== 完了 ===', 'log-info');
+  document.getElementById('ext-results-table-wrap').style.display = 'block';
+}
+function addResultRow(tbody, file, sheet, type, value) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${file}</td><td>${sheet}</td><td>${type}</td><td class="num">${value}</td>`;
+  tbody.appendChild(tr);
+}
+
+function extractCableDistance(rows) {
+  let cableCol=null;
+  for(let c=0;c<(rows[0]||[]).length;c++) {
+    for(let r=0;r<Math.min(10,rows.length);r++) {
+      const v=rows[r]&&rows[r][c]; if(!v) continue;
+      if(String(v).toLowerCase().includes('cable distance')){ cableCol=c; break; }
+    }
+    if(cableCol!==null) break;
+  }
+  if(cableCol===null) return {val:null, msg:'Cable Distance列が見つかりません'};
+  const candCol = cableCol+1;
+  if(candCol>=(rows[0]||[]).length) return {val:null, msg:'Cable Distanceの右隣列が存在しません'};
+  const colData = rows.map(r=>r&&r[candCol]!=null?String(r[candCol]).toLowerCase():'');
+  if(!colData.some(v=>v.includes('cumulative'))||!colData.some(v=>v.includes('total')))
+    return {val:null, msg:"右隣列に 'Cumulative' と 'Total' が見つかりません"};
+  const nums = rows.map(r=>r&&r[candCol]).map(parseNum).filter(v=>v!==null);
+  if(!nums.length) return {val:null, msg:'数値なし'};
+  return {val: Math.round(nums[nums.length-1]*1000)/1000};
+}
+function extractMaxDepth(rows) {
+  const col = findCol(rows, ['approx','depth']);
+  if(col===null) return {val:null, msg:'Approx Depth列が見つかりません'};
+  const nums = rows.map(r=>r&&r[col]).map(parseNum).filter(v=>v!==null);
+  if(!nums.length) return {val:null, msg:'数値なし'};
+  return {val: Math.max(...nums)};
+}
+function extractMaxBurial(rows) {
+  const col = findCol(rows, ['burial','depth']);
+  if(col===null) return {val:null, msg:'Burial Depth列が見つかりません'};
+  const nums = rows.map(r=>r&&r[col]).map(parseNum).filter(v=>v!==null&&v>=0);
+  if(!nums.length) return {val:null, msg:'数値なし'};
+  return {val: Math.max(...nums)};
+}
+
+function saveExtractCSV() {
+  if(!extractResults.length) { alert('抽出データがありません'); return; }
+  const lines = ['ファイル名,シート名,抽出種別,抽出値', ...extractResults.map(r=>`${r.file},${r.sheet},${r.type},${r.value}`)];
+  const now = new Date().toISOString().slice(0,16).replace(/[:T]/g,'').replace('-','');
+  downloadCSV(lines.join('\n'), `extract_${now}.csv`);
+}
+
+// =============================================
+//  Route Map (Leaflet)
+// =============================================
+function initMap() {
+  const container = document.getElementById('map-container');
+  if(mapInstance) return;
+  mapInstance = L.map('map-container', {center:[0,130], zoom:3});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'© OpenStreetMap contributors', maxZoom:18
+  }).addTo(mapInstance);
+}
+
+async function drawRouteMap() {
+  if(!mapFiles.length) return;
+  if(!mapInstance) initMap();
+  clearMap();
+  clearLog('map-log');
+  const showLabels = document.getElementById('map-show-labels').checked;
+  const showMarkers = document.getElementById('map-show-markers').checked;
+  const colors = ['#ff4040','#00c6ff','#22d36a','#f5a623','#9b6fff','#ff80ab','#00e5ff'];
+  const bounds = [];
+  let ci = 0;
+  appendLog('map-log', '=== ルートMAP描画開始 ===', 'log-info');
+  for(const file of mapFiles) {
+    const sheet = await selectSheetForFile(file);
+    if(!sheet) continue;
+    try {
+      const rows = await readXLSX(file, sheet, 0);
+      const ll = extractLatLon(rows);
+      if(!ll||!ll.lats.length) { appendLog('map-log', `⚠ ${file.name}: 座標データなし`,'log-warn'); continue; }
+      const color = colors[ci % colors.length]; ci++;
+      const latlngs = ll.lats.map((la,i) => [la, ll.lons[i]]);
+      const poly = L.polyline(latlngs, {color, weight:2.5, opacity:0.85}).addTo(mapInstance);
+      mapLayers.push(poly);
+      latlngs.forEach(p => bounds.push(p));
+      if(showMarkers) {
+        latlngs.forEach(p => {
+          const m = L.circleMarker(p, {radius:3, color, fillColor:color, fillOpacity:0.8, weight:1}).addTo(mapInstance);
+          mapLayers.push(m);
+        });
+      }
+      if(showLabels) {
+        const mid = latlngs[Math.floor(latlngs.length/2)];
+        const lbl = L.marker(mid, {
+          icon: L.divIcon({className:'', html:`<div style="background:rgba(10,15,30,0.85);color:${color};border:1px solid ${color};padding:2px 6px;border-radius:3px;font-size:11px;white-space:nowrap">${file.name.replace('.xlsx','')}</div>`, iconAnchor:[0,0]})
+        }).addTo(mapInstance);
+        mapLayers.push(lbl);
+      }
+      appendLog('map-log', `✔ ${file.name} [${sheet}]: ${latlngs.length}点`, 'log-success');
+    } catch(e) {
+      appendLog('map-log', `✘ ${file.name}: ${e}`, 'log-error');
+    }
+  }
+  if(bounds.length) { mapInstance.fitBounds(bounds, {padding:[20,20]}); }
+  appendLog('map-log', '=== 完了 ===', 'log-info');
+}
+
+function clearMap() {
+  mapLayers.forEach(l => { try { mapInstance.removeLayer(l); } catch(e){} });
+  mapLayers.length = 0;
+}
+
+// =============================================
+//  Depth Graph (Chart.js)
+// =============================================
+async function drawDepthGraphs() {
+  if(!graphFiles.length) return;
+  clearGraphs();
+  const wrap = document.getElementById('graph-charts-wrap');
+  const syncDepth = document.getElementById('graph-sync-depth').checked;
+  // Pre-scan for global max depth if sync enabled
+  let globalMaxDepth = 0;
+  const allConfigs = [];
+  for(const file of graphFiles) {
+    const sheet = await selectSheetForFile(file);
+    if(!sheet) continue;
+    try {
+      const rows = await readXLSX(file, sheet, 0);
+      const cfg = buildGraphData(rows);
+      if(cfg) {
+        allConfigs.push({file, sheet, cfg});
+        if(syncDepth) globalMaxDepth = Math.max(globalMaxDepth, ...cfg.depths.filter(v=>v!==null));
+      }
+    } catch(e) {}
+  }
+  for(const {file, sheet, cfg} of allConfigs) {
+    const div = document.createElement('div');
+    div.className = 'chart-wrap';
+    div.innerHTML = `<div class="chart-title">${file.name} — ${sheet}</div><canvas style="max-height:300px"></canvas>
+      <div style="font-size:10px;color:var(--text2);margin-top:6px;display:flex;gap:16px;">
+        <span style="color:#378ADD">■ 水深 (左軸)</span>
+        <span style="color:#E24B4A">● 埋設深度 (右軸)</span>
+        <span style="color:#F5A623">✕ イベント</span>
+      </div>`;
+    wrap.appendChild(div);
+    const canvas = div.querySelector('canvas');
+    renderDepthChart(canvas, cfg, syncDepth ? globalMaxDepth : null, `${file.name} — ${sheet}`);
+    depthCharts.push({canvas, name: file.name.replace('.xlsx','')+'_'+sheet});
+  }
+}
+function buildGraphData(rows) {
+  const cableColHead = findCol(rows, ['cable distance']);
+  if(cableColHead===null) return null;
+  const cableCumCol = cableColHead+1;
+  const depthCol = findCol(rows, ['approx','depth']);
+  const burialCol = findCol(rows, ['burial','depth']);
+  const cables=[], depths=[], burials=[], events=[];
+  const kws = ['splice','repair','bight','cx'];
+  for(let r=0;r<rows.length;r++) {
+    const row = rows[r]; if(!row) continue;
+    const c = parseNum(row[cableCumCol]);
+    if(c===null) continue;
+    cables.push(c);
+    depths.push(depthCol!==null ? parseNum(row[depthCol]) : null);
+    burials.push(burialCol!==null ? parseNum(row[burialCol]) : null);
+    if(depthCol!==null) {
+      const rowStr = row.map(v=>v!=null?String(v).toLowerCase():'').join(' ');
+      for(const kw of kws) {
+        if(rowStr.includes(kw)) {
+          events.push({x:c, y:parseNum(row[depthCol]), label:kw.toUpperCase()});
+          break;
+        }
+      }
+    }
+  }
+  return {cables, depths, burials, events};
+}
+function renderDepthChart(canvas, cfg, globalMax, title) {
+  const {cables, depths, burials, events} = cfg;
+  const validDepths = depths.filter(v=>v!==null&&v>0);
+  const maxD = globalMax || (validDepths.length ? Math.max(...validDepths) : 100);
+  const maxB = burials.filter(v=>v!==null&&v>=0).reduce((a,b)=>Math.max(a,b),3.5);
+  const chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: cables,
+      datasets: [
+        {
+          label: '水深(m)', data: depths.map((d,i)=>d>0?{x:cables[i],y:d}:null).filter(Boolean),
+          borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.1)',
+          borderWidth:1.5, pointRadius:0, tension:0.2, yAxisID:'y',
+          fill: true
+        },
+        {
+          label:'埋設深度(m)', data: burials.map((b,i)=>b!==null&&b>=0?{x:cables[i],y:b}:null).filter(Boolean),
+          borderColor:'#E24B4A', backgroundColor:'rgba(226,75,74,0)',
+          borderWidth:0, pointRadius:3, pointBackgroundColor:'#E24B4A', yAxisID:'y2',
+          showLine:false
+        },
+        {
+          label:'イベント', data: events.map(e=>({x:e.x, y:e.y})),
+          borderColor:'#F5A623', backgroundColor:'#F5A623',
+          borderWidth:0, pointRadius:6, pointStyle:'crossRot', yAxisID:'y',
+          showLine:false
+        }
+      ]
+    },
+    options: {
+      animation:false, responsive:true,
+      parsing:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label:ctx=>{
+              if(ctx.datasetIndex===2){const ev=events[ctx.dataIndex];return ev?ev.label:'';}
+              return `${ctx.dataset.label}: ${ctx.parsed.y}`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{type:'linear',title:{display:true,text:'ケーブル長 [km]',color:'#8a9bc4',font:{size:10}},
+          ticks:{color:'#8a9bc4',font:{size:9}},grid:{color:'rgba(42,58,92,0.4)'}},
+        y:{title:{display:true,text:'水深 [m]',color:'#378ADD',font:{size:10}},
+          ticks:{color:'#378ADD',font:{size:9}},grid:{color:'rgba(42,58,92,0.3)'},
+          reverse:true, min:0, max:maxD*1.1},
+        y2:{position:'right',title:{display:true,text:'埋設深度 [m]',color:'#E24B4A',font:{size:10}},
+          ticks:{color:'#E24B4A',font:{size:9}},grid:{display:false},
+          reverse:true, min:0, max:Math.max(maxB,3.5)}
+      }
+    }
+  });
+  depthCharts.push(chart);
+}
+function clearGraphs() {
+  depthCharts.forEach(c => { try{c.destroy&&c.destroy();}catch(e){} });
+  depthCharts.length = 0;
+  document.getElementById('graph-charts-wrap').innerHTML = '';
+}
+function saveAllGraphs() {
+  document.querySelectorAll('#graph-charts-wrap canvas').forEach((canvas, i) => {
+    const a=document.createElement('a'); a.href=canvas.toDataURL('image/png');
+    a.download=`depth_graph_${i+1}.png`; a.click();
+  });
+}
+
+// =============================================
+//  Scatter Plot
+// =============================================
+async function drawScatter() {
+  if(!scatterFiles.length) return;
+  if(scatterChart1){try{scatterChart1.destroy();}catch(e){}} 
+  if(scatterChart2){try{scatterChart2.destroy();}catch(e){}}
+  document.getElementById('scatter-charts-wrap').innerHTML = '';
+  const aggMode = document.querySelector('input[name="agg-mode"]:checked').value;
+  const pts = [];
+  for(const file of scatterFiles) {
+    const sheet = await selectSheetForFile(file);
+    if(!sheet) continue;
+    try {
+      const rows = await readXLSX(file, sheet, 0);
+      const cableCol = findCol(rows, ['cable distance']);
+      const depthCol = findCol(rows, ['approx','depth']);
+      const burialCol = findCol(rows, ['burial','depth']);
+      if(cableCol===null||depthCol===null||burialCol===null) continue;
+      const candCable = cableCol+1;
+      if(aggMode === 'weighted') {
+        let wdSum=0, wbSum=0, totLen=0;
+        for(let r=0;r<rows.length;r++) {
+          const row=rows[r]; if(!row) continue;
+          const cl=parseNum(row[candCable]); if(cl===null) continue;
+          const d=parseNum(row[depthCol])||parseNum(rows[r+1]&&rows[r+1][depthCol]);
+          const b=parseNum(row[burialCol])||parseNum(rows[r+1]&&rows[r+1][burialCol]);
+          if(d===null||b===null) continue;
+          wdSum+=d*cl; wbSum+=b*cl; totLen+=cl;
+        }
+        if(totLen===0) continue;
+        pts.push({label:file.name.replace('.xlsx',''), depth:wdSum/totLen, burial:wbSum/totLen});
+      } else {
+        const ds=[], bs=[];
+        for(const row of rows) {
+          const d=parseNum(row&&row[depthCol]); const b=parseNum(row&&row[burialCol]);
+          if(d!==null) ds.push(d); if(b!==null) bs.push(b);
+        }
+        if(!ds.length||!bs.length) continue;
+        pts.push({label:file.name.replace('.xlsx',''), depth:Math.max(...ds), burial:Math.max(...bs)});
+      }
+    } catch(e) {}
+  }
+  if(!pts.length) { alert('有効なデータがありません'); return; }
+  const colors = ['#378ADD','#E24B4A','#22d36a','#F5A623','#9b6fff','#00c6ff','#ff80ab','#ff4040'];
+  const markers = ['circle','rect','triangle','crossRot','star'];
+  const xLim = aggMode==='max' ? Math.max(...pts.map(p=>p.burial))*1.1 : 3.0;
+  const yLim = Math.max(...pts.map(p=>p.depth))*1.1;
+  const xlabel = aggMode==='weighted' ? '平均埋設深度 (m)' : '最大埋設深度 (m)';
+  const ylabel = aggMode==='weighted' ? '平均水深 (m)' : '最大水深 (m)';
+  const wrap = document.getElementById('scatter-charts-wrap');
+  // Chart 1: legend
+  const d1=document.createElement('div'); d1.className='chart-wrap';
+  d1.innerHTML=`<div class="chart-title">散布図（凡例付き）</div><canvas id="sc1" style="max-height:350px"></canvas>`;
+  wrap.appendChild(d1);
+  // Chart 2: labels
+  const d2=document.createElement('div'); d2.className='chart-wrap';
+  d2.innerHTML=`<div class="chart-title">散布図（ラベル付き）</div><canvas id="sc2" style="max-height:350px"></canvas>`;
+  wrap.appendChild(d2);
+  const scalesCfg = {
+    x:{title:{display:true,text:xlabel,color:'#E24B4A',font:{size:10}},ticks:{color:'#E24B4A',font:{size:9}},grid:{color:'rgba(42,58,92,0.4)'},min:0,max:xLim},
+    y:{title:{display:true,text:ylabel,color:'#378ADD',font:{size:10}},ticks:{color:'#378ADD',font:{size:9}},grid:{color:'rgba(42,58,92,0.3)'},reverse:true,min:0,max:yLim}
+  };
+  scatterChart1 = new Chart(document.getElementById('sc1'), {
+    type:'scatter',
+    data:{datasets: pts.map((p,i)=>({label:p.label,data:[{x:p.burial,y:p.depth}],backgroundColor:colors[i%colors.length],pointStyle:markers[i%markers.length],pointRadius:7}))},
+    options:{animation:false,plugins:{legend:{display:true,labels:{color:'#8a9bc4',font:{size:9},usePointStyle:true}}},scales:scalesCfg}
+  });
+  scatterChart2 = new Chart(document.getElementById('sc2'), {
+    type:'scatter',
+    data:{datasets:[{data:pts.map(p=>({x:p.burial,y:p.depth})),backgroundColor:'#378ADD',pointRadius:6,label:''}]},
+    options:{
+      animation:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>{const p=pts[ctx.dataIndex];return `${p.label}: 水深${p.depth.toFixed(2)}m / 埋設${p.burial.toFixed(2)}m`;}}}
+      },
+      scales:scalesCfg
+    }
+  });
+  // Add labels as annotation-like overlay using afterDraw
+  const pts2 = pts;
+  const ch2 = scatterChart2;
+  const origDraw = ch2.draw.bind(ch2);
+  ch2.draw = function() {
+    origDraw();
+    const ctx2 = ch2.ctx;
+    pts2.forEach((p,i)=>{
+      const meta = ch2.getDatasetMeta(0);
+      if(!meta.data[i]) return;
+      const {x,y} = meta.data[i];
+      ctx2.save();
+      ctx2.font='9px monospace';
+      ctx2.fillStyle='#8a9bc4';
+      ctx2.fillText(`${p.label}\n${p.depth.toFixed(1)}/${p.burial.toFixed(2)}`, x+8, y);
+      ctx2.restore();
+    });
+  };
+  ch2.draw();
+}
+function saveScatter() {
+  ['sc1','sc2'].forEach((id,i) => {
+    const c=document.getElementById(id); if(!c) return;
+    const a=document.createElement('a'); a.href=c.toDataURL('image/png');
+    a.download=`scatter_${i+1}.png`; a.click();
+  });
+}
+
+// =============================================
+//  Setup all drop zones
+// =============================================
+document.addEventListener('DOMContentLoaded', () => {
+  setupDropZone('kml-drop','kml-file-input',kmlFiles,'kml-file-list',['kml-run-btn']);
+  setupDropZone('ext-drop','ext-file-input',extFiles,'ext-file-list',['ext-cable-btn','ext-depth-btn','ext-burial-btn']);
+  setupDropZone('map-drop','map-file-input',mapFiles,'map-file-list',['map-run-btn']);
+  setupDropZone('graph-drop','graph-file-input',graphFiles,'graph-file-list',['graph-run-btn']);
+  setupDropZone('scatter-drop','scatter-file-input',scatterFiles,'scatter-file-list',['scatter-run-btn']);
+  initPyodide();
+});
+</script>
+</body>
+</html>
