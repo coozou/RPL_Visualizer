@@ -821,13 +821,15 @@ function findCol(rows, keywords, maxScan=10) {
 }
 function findLatLonCols(rows) {
   let lat=null, lon=null;
-  const n = Math.min(10, rows.length);
+  // スキャン範囲を広げ（先頭20行）、全行を検索
+  const n = Math.min(20, rows.length);
   for(let c=0; c<(rows[0]||[]).length; c++) {
     for(let r=0;r<n;r++) {
       const v = rows[r]&&rows[r][c]; if(!v) continue;
       const s = String(v).toLowerCase().trim();
-      if(s.includes('latitude') && lat===null) lat=c;
-      if(s.includes('longitude') && lon===null) lon=c;
+      // 完全一致 or 含む どちらでも検出
+      if((s==='latitude'||s.includes('latitude')) && lat===null) lat=c;
+      if((s==='longitude'||s.includes('longitude')) && lon===null) lon=c;
     }
   }
   return {lat, lon};
@@ -846,9 +848,13 @@ function extractLatLon(rows) {
   if(lat===null||lon===null) return null;
   const lats=[], lons=[];
   for(const row of rows) {
+    if(!row) continue;
+    // 度・分・方位の3列セット構造に対応
     const la = toDeg(row[lat], row[lat+1], row[lat+2]);
     const lo = toDeg(row[lon], row[lon+1], row[lon+2]);
-    if(la!==null&&lo!==null&&!isNaN(la)&&!isNaN(lo)) { lats.push(la); lons.push(lo); }
+    if(la!==null&&lo!==null&&!isNaN(la)&&!isNaN(lo)&&Math.abs(la)<=90&&Math.abs(lo)<=180) {
+      lats.push(la); lons.push(lo);
+    }
   }
   return lats.length ? {lats, lons} : null;
 }
@@ -861,31 +867,35 @@ const COLOR_MAP = {
 };
 function generateKML(rows, lineColor, lineWidth, iconUrl, iconSize, iconColor, labelSize, labelColor) {
   const {lat, lon} = findLatLonCols(rows);
-  if(lat===null||lon===null) return {ok:false, msg:'緯度・経度列が見つかりません'};
-  // Find event col
+  if(lat===null||lon===null) return {ok:false, msg:'緯度・経度列が見つかりません (Latitude/Longitude ヘッダーが見つかりません)'};
+  // Find event col (先頭20行でスキャン)
   let evCol=null;
   for(let c=0;c<(rows[0]||[]).length;c++) {
-    for(let r=0;r<Math.min(10,rows.length);r++) {
+    for(let r=0;r<Math.min(20,rows.length);r++) {
       const v=rows[r]&&rows[r][c]; if(!v) continue;
-      if(String(v).toLowerCase().includes('event')){ evCol=c; break; }
+      if(String(v).toLowerCase().trim()=='event'){ evCol=c; break; }
     }
     if(evCol!==null) break;
   }
   const coords=[];
   const placemarks=[];
   for(const row of rows) {
+    if(!row) continue;
     const la = toDeg(row[lat], row[lat+1], row[lat+2]);
     const lo = toDeg(row[lon], row[lon+1], row[lon+2]);
     if(la===null||lo===null||isNaN(la)||isNaN(lo)) continue;
+    if(Math.abs(la)>90||Math.abs(lo)>180) continue; // 無効値除外
     const name = evCol!==null&&row[evCol]!=null ? String(row[evCol]) : '';
     coords.push(`${lo},${la},0`);
-    if(name) placemarks.push(`  <Placemark><name>${escXml(name)}</name><styleUrl>#pt</styleUrl><Point><coordinates>${lo},${la},0</coordinates></Point></Placemark>`);
+    if(name&&name.trim()&&name.toLowerCase()!=='event') {
+      placemarks.push(`  <Placemark><name>${escXml(name)}</name><styleUrl>#pt</styleUrl><Point><coordinates>${lo},${la},0</coordinates></Point></Placemark>`);
+    }
   }
   if(!coords.length) return {ok:false, msg:'有効な座標データが見つかりません'};
   const ic = COLOR_MAP[iconColor]||'ffffffff';
   const lc = COLOR_MAP[labelColor]||'ffffffff';
   const kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<Style id="pt"><IconStyle><scale>${iconSize}</scale><color>${ic}</color><Icon><href>${iconUrl}</href></Icon></IconStyle><LabelStyle><scale>${labelSize}</scale><color>${lc}</color></LabelStyle></Style>\n<Style id="ln"><LineStyle><color>${lineColor}</color><width>${lineWidth}</width></LineStyle></Style>\n${placemarks.join('\n')}\n  <Placemark><name>Route Line</name><styleUrl>#ln</styleUrl><LineString><tessellate>1</tessellate><coordinates>${coords.join(' ')}</coordinates></LineString></Placemark>\n</Document>\n</kml>`;
-  return {ok:true, kml};
+  return {ok:true, kml, count:coords.length};
 }
 function escXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function downloadText(text, filename) {
@@ -913,12 +923,12 @@ async function runKML() {
     const sheet = await selectSheetForFile(file);
     if(!sheet) { appendLog('kml-log', `スキップ: ${file.name} (シート未選択)`,'log-warn'); continue; }
     try {
-      const rows = await readXLSX(file, sheet, 5);
+      const rows = await readXLSX(file, sheet, 0);
       const result = generateKML(rows, lineColor, lineWidth, iconUrl, iconSize, iconColor, labelSize, labelColor);
       if(result.ok) {
         const fname = file.name.replace('.xlsx','.kml');
         downloadText(result.kml, fname);
-        appendLog('kml-log', `✔ KML作成成功: ${fname}`, 'log-success');
+        appendLog('kml-log', `✔ KML作成成功: ${fname} (${result.count}点)`, 'log-success');
       } else {
         appendLog('kml-log', `✘ エラー (${file.name}): ${result.msg}`, 'log-error');
       }
