@@ -1214,12 +1214,15 @@ async function drawRouteMap() {
       if(!ll||!ll.lats.length) { appendLog('map-log', `⚠ ${file.name}: 座標データなし`,'log-warn'); continue; }
       const color = colors[ci % colors.length]; ci++;
       const latlngs = ll.lats.map((la,i) => [la, ll.lons[i]]);
-      const poly = L.polyline(latlngs, {color, weight:2.5, opacity:0.85}).addTo(mapInstance);
+      const label = file.name.replace('.xlsx','');
+      const poly = L.polyline(latlngs, {color, weight:1.5, opacity:0.8}).addTo(mapInstance);
+      poly.bindPopup(`<b style="color:${color}">${label}</b>`, {closeButton:false});
+      poly.on('click', function(e) { this.openPopup(e.latlng); });
       mapLayers.push(poly);
       latlngs.forEach(p => bounds.push(p));
       if(showMarkers) {
         latlngs.forEach(p => {
-          const m = L.circleMarker(p, {radius:3, color, fillColor:color, fillOpacity:0.8, weight:1}).addTo(mapInstance);
+          const m = L.circleMarker(p, {radius:2, color, fillColor:color, fillOpacity:0.7, weight:0.5}).addTo(mapInstance);
           mapLayers.push(m);
         });
       }
