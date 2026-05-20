@@ -1100,40 +1100,64 @@ const TILE_LAYERS = {
     maxZoom: 19
   },
   'esri-ocean': {
+    // zoom13まで海洋図、zoom14以降は衛星写真で自動補完
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
     attribution: '© Esri, GEBCO, NOAA, National Geographic',
-    maxZoom: 13,
-    maxZoomNote: '※ Esri海洋図はzoom13が上限です'
+    maxNative: 13,
+    maxZoom: 19,
+    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
   }
 };
 let currentTileLayer = null;
 
+let fallbackTileLayer = null;
+
 function initMap() {
   if(mapInstance) return;
   mapInstance = L.map('map-container', {center:[0,130], zoom:3});
-  const key = document.getElementById('map-tile-type')?.value || 'osm';
-  const cfg = TILE_LAYERS[key];
-  currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
-  currentTileLayer.addTo(mapInstance);
+  switchTileLayer();
 }
 
 function switchTileLayer() {
   if(!mapInstance) return;
   const key = document.getElementById('map-tile-type').value;
   const cfg = TILE_LAYERS[key];
-  if(currentTileLayer) { mapInstance.removeLayer(currentTileLayer); currentTileLayer = null; }
-  currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
-  currentTileLayer.addTo(mapInstance);
-  mapInstance.setMaxZoom(cfg.maxZoom);
-  // 海洋図の場合は上限注記をログに表示
-  const note = document.getElementById('map-log');
-  if(cfg.maxZoomNote && note) {
-    note.textContent = cfg.maxZoomNote;
-    note.className = 'output-log log-warn';
-  } else if(note) {
-    note.textContent = '待機中...';
-    note.className = 'output-log';
+  if(currentTileLayer)  { mapInstance.removeLayer(currentTileLayer);  currentTileLayer  = null; }
+  if(fallbackTileLayer) { mapInstance.removeLayer(fallbackTileLayer); fallbackTileLayer = null; }
+
+  if(cfg.fallbackUrl) {
+    // 海洋図: zoom13まで海洋図タイル、zoom14以降は衛星写真タイルを重ねる
+    currentTileLayer = L.tileLayer(cfg.url, {
+      attribution: cfg.attribution,
+      maxNativeZoom: cfg.maxNative,  // タイルの実在上限
+      maxZoom: cfg.maxZoom           // 地図自体は19まで拡大可
+    });
+    fallbackTileLayer = L.tileLayer(cfg.fallbackUrl, {
+      attribution: '© Esri, Maxar',
+      maxNativeZoom: 19,
+      maxZoom: cfg.maxZoom,
+      opacity: 0.0                   // 初期は透明
+    });
+    currentTileLayer.addTo(mapInstance);
+    fallbackTileLayer.addTo(mapInstance);
+    // ズームに応じて衛星写真の不透明度を切り替え
+    mapInstance.off('zoomend.tilelayer');
+    mapInstance.on('zoomend.tilelayer', () => {
+      const z = mapInstance.getZoom();
+      if(z > cfg.maxNative) {
+        currentTileLayer.setOpacity(0);
+        fallbackTileLayer.setOpacity(1);
+      } else {
+        currentTileLayer.setOpacity(1);
+        fallbackTileLayer.setOpacity(0);
+      }
+    });
+  } else {
+    currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
+    currentTileLayer.addTo(mapInstance);
+    mapInstance.off('zoomend.tilelayer');
   }
+  mapInstance.setMaxZoom(cfg.maxZoom);
 }
 
 async function drawRouteMap() {
