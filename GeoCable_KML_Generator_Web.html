@@ -1039,22 +1039,25 @@ function showMap() {
     map.removeLayer(kmlLayer);
   }
 
-  const customLayer = L.geoJson(null, {
+  // omnivoreでKMLをGeoJSONに変換してからカスタムスタイルで描画
+  const rawLayer = omnivore.kml.parse(window._lastKmlContent);
+
+  kmlLayer = L.geoJson(rawLayer.toGeoJSON(), {
     style: function(feature) {
-      const name = feature.properties.name || '';
+      const name = (feature.properties && feature.properties.name) || '';
       const isOss = name.includes('(OSS)');
       return {
-        color: isOss ? '#c8c8c8' : '#ffffff',
+        color: isOss ? '#c8c8c8' : '#3388ff',
         weight: isOss ? 0.3 : 1,
         opacity: 1
       };
     },
     pointToLayer: function(feature, latlng) {
       return L.circleMarker(latlng, {
-        radius: 1.5,
+        radius: 1,
         fillColor: '#ffff00',
         color: '#ffff00',
-        weight: 0.5,
+        weight: 1,
         opacity: 1,
         fillOpacity: 1
       });
@@ -1068,13 +1071,10 @@ function showMap() {
     }
   });
 
-  kmlLayer = omnivore.kml.parse(window._lastKmlContent, null, customLayer)
-    .on('ready', function() {
-      if (this.getLayers().length > 0) {
-        map.fitBounds(this.getBounds());
-      }
-    })
-    .addTo(map);
+  kmlLayer.addTo(map);
+  if (kmlLayer.getLayers().length > 0) {
+    map.fitBounds(kmlLayer.getBounds());
+  }
 
   setTimeout(() => map.invalidateSize(), 100);
 }
