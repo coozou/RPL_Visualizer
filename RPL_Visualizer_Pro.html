@@ -1280,7 +1280,13 @@ function buildGraphData(rows) {
 function renderDepthChart(canvas, cfg, globalMax, title) {
   const {cables, depths, burials, events} = cfg;
   const validDepths = depths.filter(v=>v!==null&&v>0);
-  const maxD = globalMax || (validDepths.length ? Math.max(...validDepths) : 100);
+  const rawMaxD = globalMax || (validDepths.length ? Math.max(...validDepths) : 100);
+  // Pythonのmatplotlib自動スケールに相当: 100m刻みでキリの良い値に切り上げ
+  function ceilToNice(v) {
+    const step = v <= 100 ? 10 : v <= 500 ? 50 : 100;
+    return Math.ceil(v * 1.1 / step) * step;
+  }
+  const maxD = ceilToNice(rawMaxD);
   const maxB = burials.filter(v=>v!==null&&v>=0).reduce((a,b)=>Math.max(a,b),3.5);
   const chart = new Chart(canvas, {
     type: 'line',
@@ -1325,10 +1331,11 @@ function renderDepthChart(canvas, cfg, globalMax, title) {
         x:{type:'linear',title:{display:true,text:'ケーブル長 [km]',color:'#8a9bc4',font:{size:10}},
           ticks:{color:'#8a9bc4',font:{size:9}},grid:{color:'rgba(42,58,92,0.4)'}},
         y:{title:{display:true,text:'水深 [m]',color:'#378ADD',font:{size:10}},
-          ticks:{color:'#378ADD',font:{size:9}},grid:{color:'rgba(42,58,92,0.3)'},
-          reverse:true, min:0, max:maxD*1.1},
+          ticks:{color:'#378ADD',font:{size:9},stepSize:maxD<=100?10:maxD<=500?50:100},
+          grid:{color:'rgba(42,58,92,0.3)'},
+          reverse:true, min:0, max:maxD},
         y2:{position:'right',title:{display:true,text:'埋設深度 [m]',color:'#E24B4A',font:{size:10}},
-          ticks:{color:'#E24B4A',font:{size:9}},grid:{display:false},
+          ticks:{color:'#E24B4A',font:{size:9},stepSize:0.5},grid:{display:false},
           reverse:true, min:0, max:Math.max(maxB,3.5)}
       }
     }
@@ -1424,7 +1431,11 @@ async function drawScatter() {
   const colors = ['#378ADD','#E24B4A','#22d36a','#F5A623','#9b6fff','#00c6ff','#ff80ab','#ff4040'];
   const markers = ['circle','rect','triangle','crossRot','star'];
   const xLim = aggMode==='max' ? Math.max(...pts.map(p=>p.burial))*1.1 : 3.0;
-  const yLim = Math.max(...pts.map(p=>p.depth))*1.1;
+  function ceilToNice(v) {
+    const step = v <= 100 ? 10 : v <= 500 ? 50 : 100;
+    return Math.ceil(v * 1.1 / step) * step;
+  }
+  const yLim = ceilToNice(Math.max(...pts.map(p=>p.depth)));
   const xlabel = aggMode==='weighted' ? '平均埋設深度 (m)' : '最大埋設深度 (m)';
   const ylabel = aggMode==='weighted' ? '平均水深 (m)' : '最大水深 (m)';
   const wrap = document.getElementById('scatter-charts-wrap');
