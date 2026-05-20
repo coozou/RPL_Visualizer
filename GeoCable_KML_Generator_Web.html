@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeoCable KML Generator Web</title>
+<style>
+  :root {
+    --bg: #D7E7EE;
+    --panel: #ffffff;
+    --accent: #002368;
+    --accent2: #105510;
+    --danger: #8E001B;
+    --border: #b0c8d4;
+    --text: #1a1a2e;
+    --subtext: #4a6a7a;
+    --log-bg: #0d1117;
+    --log-text: #e6edf3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'BIZ UDGothic', 'Meiryo', 'Yu Gothic', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    background: var(--bg);
+    padding: 8px 20px 4px;
+    border-bottom: 2px solid var(--border);
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  h1 {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .guidance {
+    font-size: 0.78rem;
+    color: var(--danger);
+    margin-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  /* ===== MAIN LAYOUT ===== */
+  .main {
+    display: flex;
+    flex: 1;
+    gap: 0;
+    overflow: hidden;
+  }
+  .left-pane {
+    width: 520px;
+    min-width: 480px;
+    padding: 12px 16px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+  }
+  .right-pane {
+    flex: 1;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  /* ===== SECTION HEADERS ===== */
+  .section-header {
+    font-size: 0.82rem;
+    font-weight: bold;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 3px;
+    margin: 10px 0 8px;
+    letter-spacing: 0.05em;
+  }
+  .section-header:first-child { margin-top: 0; }
+
+  /* ===== FILE SELECT ===== */
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+  .file-label {
+    width: 100px;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  .file-display {
+    flex: 1;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 0.78rem;
+    color: var(--subtext);
+    min-height: 26px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .file-display.has-file { color: var(--text); }
+  .btn-browse {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .btn-browse:hover { opacity: 0.85; }
+  .btn-clear-file {
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  input[type=file] { display: none; }
+
+  /* ===== LOAD BUTTON ===== */
+  .load-area {
+    text-align: center;
+    margin: 10px 0 6px;
+  }
+  .load-note {
+    font-size: 0.75rem;
+    color: var(--danger);
+    margin-bottom: 4px;
+  }
+
+  /* ===== STYLE SETTINGS ===== */
+  .style-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  .style-table th {
+    text-align: center;
+    padding: 3px 6px;
+    color: var(--subtext);
+    font-weight: normal;
+    font-size: 0.76rem;
+  }
+  .style-table td {
+    padding: 3px 6px;
+    vertical-align: middle;
+  }
+  .color-btn {
+    width: 60px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    display: block;
+  }
+  .size-spin {
+    width: 60px;
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+  .icon-select {
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    background: white;
+  }
+
+  /* ===== OUTPUT SETTINGS ===== */
+  .output-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .output-label {
+    font-size: 0.82rem;
+    width: 100px;
+    flex-shrink: 0;
+  }
+  .output-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.88rem;
+  }
+  .output-note {
+    font-size: 0.72rem;
+    color: var(--subtext);
+    margin-bottom: 6px;
+  }
+
+  /* ===== FOLDER STRUCTURE ===== */
+  .radio-group {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin: 6px 0;
+    font-size: 0.82rem;
+  }
+  .radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    border: none;
+    border-radius: 4px;
+    padding: 8px 24px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-success { background: var(--accent2); color: white; }
+  .btn-danger  { background: var(--danger);  color: white; }
+  .btn-sm { padding: 4px 12px; font-size: 0.78rem; }
+
+  .action-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+
+  /* ===== RIGHT PANE ===== */
+  .right-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .search-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .search-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.85rem;
+  }
+  .sys-list {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    font-family: 'Courier New', monospace;
+    height: 45vh;
+  }
+  .sys-item {
+    padding: 3px 8px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sys-item:hover { background: #e8f4f8; }
+  .sys-item.selected { background: #c5dfe8; }
+  .sys-icons { width: 3.6em; flex-shrink: 0; font-size: 0.82rem; white-space: nowrap; font-family: monospace; }
+
+  .sel-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+  }
+  .sel-count { font-size: 0.78rem; color: var(--subtext); margin-left: auto; }
+  .legend { font-size: 0.72rem; color: var(--subtext); }
+
+  /* ===== LOG ===== */
+  .log-area {
+    background: var(--log-bg);
+    color: var(--log-text);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    overflow-y: auto;
+    height: 25vh;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* ===== LOADING OVERLAY ===== */
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: rgba(215,231,238,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    font-size: 1rem;
+    color: var(--accent);
+    gap: 12px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer {
+    text-align: right;
+    font-size: 0.7rem;
+    font-style: italic;
+    color: var(--subtext);
+    padding: 4px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ===== PROGRESS ===== */
+  .progress-wrap {
+    display: none;
+    margin: 4px 0;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s;
+  }
+  .progress-text { font-size: 0.72rem; color: var(--subtext); text-align: right; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div>Pyodide を読み込み中... しばらくお待ちください</div>
+</div>
+
+<header>
+  <div class="header-top">
+    <h1>GeoCable KML Generator Web</h1>
+  </div>
+  <div class="guidance">
+    ① XMLファイル選択、読み込み　→　② 右画面でSystem Name選択　→　③ スタイル設定　→　④ KML生成
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ===== 左ペイン ===== -->
+  <div class="left-pane">
+
+    <div class="section-header">━ XMLファイル選択 ━</div>
+
+    <div class="file-row">
+      <span class="file-label">Cable</span>
+      <div class="file-display" id="disp-fibre">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-fibre').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('fibre')">✕</button>
+      <input type="file" id="inp-fibre" accept=".xml" multiple onchange="onFileSelect(this,'fibre')">
+    </div>
+    <div class="file-row">
+      <span class="file-label">Cable(OSS)</span>
+      <div class="file-display" id="disp-fibre-oss">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-fibre-oss').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('fibre-oss')">✕</button>
+      <input type="file" id="inp-fibre-oss" accept=".xml" multiple onchange="onFileSelect(this,'fibre-oss')">
+    </div>
+    <div class="file-row">
+      <span class="file-label">Repeater</span>
+      <div class="file-display" id="disp-rep">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-rep').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('rep')">✕</button>
+      <input type="file" id="inp-rep" accept=".xml" multiple onchange="onFileSelect(this,'rep')">
+    </div>
+    <div class="file-row">
+      <span class="file-label">Equaliser</span>
+      <div class="file-display" id="disp-eq">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-eq').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('eq')">✕</button>
+      <input type="file" id="inp-eq" accept=".xml" multiple onchange="onFileSelect(this,'eq')">
+    </div>
+
+    <div class="load-area">
+      <div class="load-note">XMLファイル選択後に押下</div>
+      <button class="btn btn-success" id="btn-load" onclick="loadXML()">読み込み</button>
+    </div>
+    <div class="progress-wrap" id="prog-load">
+      <div class="progress-bar"><div class="progress-fill" id="prog-load-fill"></div></div>
+      <div class="progress-text" id="prog-load-text"></div>
+    </div>
+
+    <div class="section-header">━ スタイル設定 ━</div>
+    <table class="style-table">
+      <tr>
+        <th style="width:90px;text-align:left"></th>
+        <th>カラー</th>
+        <th>サイズ</th>
+        <th>アイコン</th>
+      </tr>
+      <tr>
+        <td>Cable</td>
+        <td><input type="color" class="color-btn" id="col-line" value="#ffffff"></td>
+        <td><input type="number" class="size-spin" id="size-line" value="1.0" min="0.1" max="10" step="0.1"></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Cable(OSS)</td>
+        <td><input type="color" class="color-btn" id="col-oss" value="#ffffff"></td>
+        <td><input type="number" class="size-spin" id="size-oss" value="0.3" min="0.1" max="10" step="0.1"></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Repeater</td>
+        <td><input type="color" class="color-btn" id="col-rep" value="#ffff00"></td>
+        <td><input type="number" class="size-spin" id="size-rep" value="0.5" min="0.1" max="3" step="0.1"></td>
+        <td>
+          <select class="icon-select" id="icon-rep">
+            <option value="placemark_circle">◎ 丸</option>
+            <option value="placemark_square">□ 四角</option>
+            <option value="triangle">△ 三角</option>
+            <option value="open-diamond">◇ ダイヤ</option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <td>Equaliser</td>
+        <td><input type="color" class="color-btn" id="col-eq" value="#00ffff"></td>
+        <td><input type="number" class="size-spin" id="size-eq" value="0.5" min="0.1" max="3" step="0.1"></td>
+        <td>
+          <select class="icon-select" id="icon-eq">
+            <option value="placemark_circle">◎ 丸</option>
+            <option value="placemark_square">□ 四角</option>
+            <option value="triangle">△ 三角</option>
+            <option value="open-diamond" selected>◇ ダイヤ</option>
+          </select>
+        </td>
+      </tr>
+    </table>
+
+    <div class="section-header">━ 出力設定 ━</div>
+    <div class="output-row">
+      <span class="output-label">KMLファイル名</span>
+      <input type="text" class="output-input" id="out-name" value="GeoCable_KML_Generator_Web" style="color:grey" onfocus="this.style.color='black';this.setSelectionRange(this.value.length,this.value.length);" onblur="if(!this.value.trim()){this.value='GeoCable_KML_Generator_Web';this.style.color='grey';}">
+    </div>
+    <div class="output-note">（拡張子不要）</div>
+
+    <div class="section-header">━ KMLファイルのフォルダ構造 ━</div>
+    <div class="radio-group">
+      <label><input type="radio" name="folder" value="lp" checked> Cable/Repeater/Equaliserで分類する</label>
+      <label><input type="radio" name="folder" value="sys"> Systemですべてまとめる</label>
+    </div>
+
+    <div class="progress-wrap" id="prog-gen">
+      <div class="progress-bar"><div class="progress-fill" id="prog-gen-fill"></div></div>
+      <div class="progress-text" id="prog-gen-text"></div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-primary" id="btn-gen" onclick="generateKML()" disabled>KML生成</button>
+    </div>
+
+  </div>
+
+  <!-- ===== 右ペイン ===== -->
+  <div class="right-pane">
+    <div class="right-header">
+      <div class="section-header" style="margin:0">━ System Name一覧 ━</div>
+    </div>
+
+    <div class="search-row">
+      <span style="font-size:0.82rem">検索:</span>
+      <input type="text" class="search-input" id="search-input" placeholder="System Name を入力..." oninput="filterList()">
+      <button class="btn btn-sm" style="background:var(--danger);color:white;border:none;border-radius:3px;cursor:pointer" onclick="clearSearch()">クリア</button>
+    </div>
+
+    <div class="sel-controls">
+      <button class="btn btn-sm btn-primary" onclick="selectAll()">ALL選択</button>
+      <button class="btn btn-sm btn-danger" onclick="clearSelection()">選択解除</button>
+      <span class="sel-count" id="sel-count"></span>
+    </div>
+    <div class="legend">─ Cable  ◎ Repeater  ◇ Equaliser</div>
+
+    <div class="sys-list" id="sys-list" style="margin-top:6px"></div>
+
+    <div class="section-header" style="margin-top:10px">━ ログ ━</div>
+    <div class="log-area" id="log-area"></div>
+  </div>
+</div>
+
+<footer>Developed by: Ryo Shinozaki</footer>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.27.3/full/pyodide.js"></script>
+<script type="text/javascript">
+// ===== ファイル管理 =====
+const files = { fibre: [], 'fibre-oss': [], rep: [], eq: [] };
+
+function onFileSelect(input, key) {
+  files[key] = Array.from(input.files);
+  const disp = document.getElementById('disp-' + key);
+  if (files[key].length === 0) {
+    disp.textContent = '未選択';
+    disp.classList.remove('has-file');
+  } else {
+    disp.textContent = files[key].map(f => f.name).join('\n');
+    disp.classList.add('has-file');
+  }
+}
+
+function clearFile(key) {
+  files[key] = [];
+  document.getElementById('disp-' + key).textContent = '未選択';
+  document.getElementById('disp-' + key).classList.remove('has-file');
+  document.getElementById('inp-' + key).value = '';
+}
+
+// ===== ログ =====
+function log(msg) {
+  const el = document.getElementById('log-area');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function logClear() { document.getElementById('log-area').textContent = ''; }
+
+// ===== System Name一覧 =====
+let allNames = [];
+let displayNames = [];
+let selectedNames = new Set();
+let lineNames = new Set();
+let lineOssNames = new Set();
+let repNames = new Set();
+let eqNames = new Set();
+
+function renderList() {
+  const keyword = document.getElementById('search-input').value.trim().toLowerCase();
+  displayNames = keyword
+    ? allNames.filter(n => n.toLowerCase().includes(keyword))
+    : [...allNames];
+
+  const el = document.getElementById('sys-list');
+  el.innerHTML = '';
+  displayNames.forEach(name => {
+    const div = document.createElement('div');
+    div.className = 'sys-item' + (selectedNames.has(name) ? ' selected' : '');
+    const c1 = (lineNames.has(name) || lineOssNames.has(name)) ? '─' : ' ';
+    const c2 = repNames.has(name)  ? '◎' : ' ';
+    const c3 = eqNames.has(name)   ? '◇' : ' ';
+    const icons = `<span style="display:inline-block;width:1.1em;text-align:center">${c1}</span><span style="display:inline-block;width:1.1em;text-align:center">${c2}</span><span style="display:inline-block;width:1.1em;text-align:center">${c3}</span>`;
+    div.innerHTML = `<span class="sys-icons">${icons}</span><span>${name}</span>`;
+    div.onclick = (e) => {
+      if (e.shiftKey && lastClicked !== null) {
+        const i1 = displayNames.indexOf(lastClicked);
+        const i2 = displayNames.indexOf(name);
+        const [lo, hi] = [Math.min(i1,i2), Math.max(i1,i2)];
+        displayNames.slice(lo, hi+1).forEach(n => selectedNames.add(n));
+      } else if (e.ctrlKey || e.metaKey) {
+        selectedNames.has(name) ? selectedNames.delete(name) : selectedNames.add(name);
+      } else {
+        selectedNames.has(name) ? selectedNames.delete(name) : selectedNames.add(name);
+      }
+      lastClicked = name;
+      renderList();
+      updateSelCount();
+    };
+    el.appendChild(div);
+  });
+}
+
+let lastClicked = null;
+
+function filterList() { renderList(); }
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  renderList();
+}
+function selectAll() {
+  displayNames.forEach(n => selectedNames.add(n));
+  renderList();
+  updateSelCount();
+}
+function clearSelection() {
+  selectedNames.clear();
+  renderList();
+  updateSelCount();
+}
+function updateSelCount() {
+  const cnt = selectedNames.size;
+  document.getElementById('sel-count').textContent = cnt > 0 ? `${cnt}件選択中` : '';
+}
+
+// ===== プログレスバー =====
+function showProgress(id, val, max) {
+  const wrap = document.getElementById('prog-' + id);
+  wrap.style.display = 'block';
+  const pct = max > 0 ? (val / max * 100) : 0;
+  document.getElementById('prog-' + id + '-fill').style.width = pct + '%';
+  document.getElementById('prog-' + id + '-text').textContent = `${val} / ${max}`;
+}
+function hideProgress(id) {
+  document.getElementById('prog-' + id).style.display = 'none';
+}
+
+// ===== Pyodide =====
+let pyodide = null;
+async function initPyodide() {
+  pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.3/full/" });
+  document.getElementById('loading').style.display = 'none';
+  log('Pyodide 読み込み完了');
+}
+
+// ===== XML読み込み =====
+async function loadXML() {
+  logClear();
+  log('─── 読み込み開始 ───');
+  allNames = [];
+  selectedNames.clear();
+  lineNames.clear();
+  lineOssNames.clear();
+  repNames.clear();
+  eqNames.clear();
+
+  const allFiles = [
+    ...files['fibre'].map(f => ({file: f, kind: 'fibre'})),
+    ...files['fibre-oss'].map(f => ({file: f, kind: 'fibre-oss'})),
+    ...files['rep'].map(f => ({file: f, kind: 'rep'})),
+    ...files['eq'].map(f => ({file: f, kind: 'eq'})),
+  ];
+
+  if (allFiles.length === 0) {
+    log('[エラー] XMLファイルが選択されていません');
+    return;
+  }
+
+  showProgress('load', 0, allFiles.length);
+
+  for (let i = 0; i < allFiles.length; i++) {
+    const {file, kind} = allFiles[i];
+    const text = await file.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/xml');
+    const records = doc.querySelectorAll(':root > *');
+    const kindLabel = {fibre:'Fibre','fibre-oss':'Fibre(OSS)',rep:'Repeater',eq:'Equaliser'}[kind]||kind;
+    log(`[${kindLabel}] ${file.name} → ${records.length}件`);
+
+    records.forEach(rec => {
+      const name = rec.querySelector('SystemName')?.textContent?.trimStart() || '（名称なし）';
+      if (!allNames.includes(name)) allNames.push(name);
+      if (kind === 'fibre') lineNames.add(name);
+      if (kind === 'fibre-oss') lineOssNames.add(name);
+      if (kind === 'rep') repNames.add(name);
+      if (kind === 'eq') eqNames.add(name);
+    });
+
+    showProgress('load', i + 1, allFiles.length);
+  }
+
+  allNames.sort();
+  const subtotal = lineNames.size + lineOssNames.size + repNames.size + eqNames.size;
+  const duplicates = subtotal - allNames.length;
+  log('─── System Name集計 ───');
+  log(`Cable      : ${String(lineNames.size).padStart(4)} System`);
+  log(`Cable(OSS) : ${String(lineOssNames.size).padStart(4)} System`);
+  log(`Repeater   : ${String(repNames.size).padStart(4)} System`);
+  log(`Equaliser  : ${String(eqNames.size).padStart(4)} System`);
+  log(`小計（延べ）: ${subtotal}件`);
+  log(`うち複数種別に存在するSystem: ${duplicates}件`);
+  log(`重複排除後: ${allNames.length}件`);
+  log('─'.repeat(40));
+  log(`System Name合計: ${allNames.length}件`);
+  log('※件数はGDO_GEOMETRY解析前の概算です。KML生成時に正確に処理されます。');
+  log('読み込み完了');
+  hideProgress('load');
+  renderList();
+  updateSelCount();
+  document.getElementById('btn-gen').disabled = false;
+}
+
+// ===== RGB→KML色変換 =====
+function rgbToKml(hex) {
+  const r = hex.slice(1,3), g = hex.slice(3,5), b = hex.slice(5,7);
+  return `ff${b}${g}${r}`;
+}
+
+// ===== KML生成 =====
+async function generateKML() {
+  if (selectedNames.size === 0) {
+    alert('System Nameを選択してください');
+    return;
+  }
+  const outName = document.getElementById('out-name').value.trim() || 'GeoCable_KML_Generator_Web';
+  const folderMode = document.querySelector('input[name=folder]:checked').value;
+
+  const lineColor = rgbToKml(document.getElementById('col-line').value);
+  const lineWidth = document.getElementById('size-line').value;
+  const ossColor  = rgbToKml(document.getElementById('col-oss').value);
+  const ossWidth  = document.getElementById('size-oss').value;
+  const repColor  = rgbToKml(document.getElementById('col-rep').value);
+  const repSize   = document.getElementById('size-rep').value;
+  const repIcon   = `http://maps.google.com/mapfiles/kml/shapes/${document.getElementById('icon-rep').value}.png`;
+  const eqColor   = rgbToKml(document.getElementById('col-eq').value);
+  const eqSize    = document.getElementById('size-eq').value;
+  const eqIcon    = `http://maps.google.com/mapfiles/kml/shapes/${document.getElementById('icon-eq').value}.png`;
+
+  const selected = [...selectedNames];
+  showProgress('gen', selected.length, selected.length);
+  document.getElementById('prog-gen-text').textContent = 'KML生成中... しばらくお待ちください';
+  log('─── KML生成中 ───');
+
+  // Pyodideで処理
+  const xmlTexts = {};
+  for (const kind of ['fibre', 'fibre-oss', 'rep', 'eq']) {
+    xmlTexts[kind] = [];
+    for (const f of files[kind]) {
+      xmlTexts[kind].push(await f.text());
+    }
+  }
+
+  pyodide.globals.set('xml_texts_json', JSON.stringify(xmlTexts));
+  pyodide.globals.set('selected_names_json', JSON.stringify(selected));
+  pyodide.globals.set('folder_mode', folderMode);
+  pyodide.globals.set('doc_name', outName);
+  pyodide.globals.set('style_cfg_json', JSON.stringify({
+    line_color: lineColor, line_width: lineWidth,
+    oss_color:  ossColor,  oss_width:  ossWidth,
+    rep_color:  repColor,  rep_size:   repSize,   rep_icon: repIcon,
+    eq_color:   eqColor,   eq_size:    eqSize,    eq_icon:  eqIcon,
+  }));
+
+  const kmlContent = await pyodide.runPythonAsync(`
+import base64, struct, math, xml.etree.ElementTree as ET, json
+from collections import OrderedDict
+
+xml_texts = json.loads(xml_texts_json)
+selected_names = json.loads(selected_names_json)
+sc = json.loads(style_cfg_json)
+
+_a=6378137.0; _e2=0.00669437999014; _e=math.sqrt(_e2)
+_k=0.839504511565919; _lat0r=math.radians(33.0); _lon0=80.0
+
+def _psi(phi):
+    return math.log(math.tan(math.pi/4+phi/2)*((1-_e*math.sin(phi))/(1+_e*math.sin(phi)))**(_e/2))
+_psi0=_psi(_lat0r)
+
+def proj_to_latlon(x,y):
+    lon=math.degrees(x/(_a*_k))+_lon0
+    psi_t=y/(_a*_k)+_psi0
+    phi=2*math.atan(math.exp(psi_t))-math.pi/2
+    for _ in range(20):
+        phi_new=2*math.atan(math.exp(psi_t)*((1+_e*math.sin(phi))/(1-_e*math.sin(phi)))**(_e/2))-math.pi/2
+        if abs(phi_new-phi)<1e-12: break
+        phi=phi_new
+    if lon>180: lon-=360
+    elif lon<-180: lon+=360
+    return math.degrees(phi_new),lon
+
+def xml_escape(s):
+    s=str(s) if s else ''
+    return s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+
+def parse_single_geom(decoded,start):
+    vals=[]
+    for i in range(start+28,len(decoded)-7,8):
+        vals.append(struct.unpack('<d',decoded[i:i+8])[0])
+    x0=struct.unpack('<d',decoded[start+20:start+28])[0]
+    rx,ry=[],[]
+    i=0
+    while i+2<len(vals):
+        yv,z,xv=vals[i],vals[i+1],vals[i+2]
+        if z==0.0 and abs(yv)<10000000 and abs(xv)<10000000 and yv!=0 and xv!=0:
+            ry.append(yv); rx.append(xv)
+        i+=3
+    coords=[]
+    for j in range(len(ry)):
+        x=x0 if j==0 else rx[j-1]
+        try:
+            lat,lon=proj_to_latlon(x,ry[j])
+            if -90<lat<90 and -180<lon<180: coords.append((lon,lat))
+        except: pass
+    return coords
+
+def decode_line(b64):
+    try:
+        b64c=b64.replace(' ','').replace('\\n','').replace('\\r','').replace('\\t','')
+        dec=base64.b64decode(b64c)
+        SIG=bytes([0xc2,0xff,0xd2,0x0f])
+        if dec[0]==0xc2:
+            c=parse_single_geom(dec,0)
+            return [c] if len(c)>=2 else []
+        else:
+            pos,positions=0,[]
+            while True:
+                pos=dec.find(SIG,pos)
+                if pos==-1: break
+                positions.append(pos); pos+=1
+            res=[]
+            for k,st in enumerate(positions):
+                en=positions[k+1] if k+1<len(positions) else len(dec)
+                c=parse_single_geom(dec[st:en],0)
+                if len(c)>=2: res.append(c)
+            return res
+    except: return []
+
+def decode_point(b64):
+    try:
+        b64c=b64.replace(' ','').replace('\\n','').replace('\\r','').replace('\\t','')
+        pad=len(b64c)%4
+        if pad: b64c+='='*(4-pad)
+        dec=base64.b64decode(b64c)
+        if len(dec)<32: return None
+        x=struct.unpack('<d',dec[16:24])[0]
+        y=struct.unpack('<d',dec[24:32])[0]
+        if abs(x)>20000000 or abs(y)>20000000: return None
+        lat,lon=proj_to_latlon(x,y)
+        if -90<lat<90 and -180<lon<180: return (lat,lon)
+    except: pass
+    return None
+
+# 読み込み
+line_data={}; line_oss_data={}; point_data={}
+
+def load_records(texts, kind):
+    recs=[]
+    for txt in texts:
+        try:
+            root=ET.fromstring(txt)
+            recs.extend(list(root))
+        except: pass
+    return recs
+
+def parse_line_recs(recs, data):
+    for rec in recs:
+        geom=rec.findtext('GDO_GEOMETRY','')
+        if not geom.strip(): continue
+        gl=decode_line(geom)
+        if not gl: continue
+        name=rec.findtext('SystemName','（名称なし）')
+        if name not in data:
+            data[name]={'SystemType':rec.findtext('SystemType',''),
+                        'Inst_year':rec.findtext('Inst_year',''),
+                        'Issue':rec.findtext('Issue',''),
+                        'ID1':rec.findtext('ID1',''),
+                        'geom_list':gl}
+        else:
+            data[name]['geom_list'].extend(gl)
+
+parse_line_recs(load_records(xml_texts['fibre'],'fibre'), line_data)
+parse_line_recs(load_records(xml_texts['fibre-oss'],'oss'), line_oss_data)
+
+for rec in load_records(xml_texts['rep'],'rep')+load_records(xml_texts['eq'],'eq'):
+    geom=rec.findtext('GDO_GEOMETRY','')
+    if not geom.strip(): continue
+    res=decode_point(geom)
+    if res is None: continue
+    lat,lon=res
+    sn=rec.findtext('SystemName','（名称なし）')
+    ft=rec.findtext('Feat_type','Repeater')
+    if sn not in point_data: point_data[sn]=OrderedDict()
+    if ft not in point_data[sn]: point_data[sn][ft]=[]
+    point_data[sn][ft].append({'name':rec.findtext('SystemName',''),
+        'feat_type':ft,'issue':rec.findtext('Issue',''),
+        'id1':rec.findtext('ID1',''),'lat':lat,'lon':lon})
+
+lc=sc['line_color']; lw=sc['line_width']
+oc=sc['oss_color'];  ow=sc['oss_width']
+rc=sc['rep_color'];  rs=sc['rep_size']; ri=sc['rep_icon']
+ec=sc['eq_color'];   es=sc['eq_size'];  ei=sc['eq_icon']
+
+styles=f'''  <Style id="lineStyle"><LineStyle><color>{lc}</color><width>{lw}</width></LineStyle></Style>
+  <Style id="lineOssStyle"><LineStyle><color>{oc}</color><width>{ow}</width></LineStyle></Style>
+  <Style id="repeaterStyle">
+    <IconStyle><color>{rc}</color><scale>{rs}</scale><Icon><href>{ri}</href></Icon></IconStyle>
+    <LabelStyle><scale>0.0</scale></LabelStyle></Style>
+  <Style id="equaliserStyle">
+    <IconStyle><color>{ec}</color><scale>{es}</scale><Icon><href>{ei}</href></Icon></IconStyle>
+    <LabelStyle><scale>0.0</scale></LabelStyle></Style>'''
+
+names=list(selected_names)
+fm=str(folder_mode)
+
+def make_line_pm(sys_name, d, style_id, suffix=''):
+    pms=''
+    for coords in d['geom_list']:
+        cs=' '.join(f'{lon},{lat},0' for lon,lat in coords)
+        pms+=f'''    <Placemark>
+      <name>{xml_escape(sys_name)}{suffix}</name>
+      <description><![CDATA[SystemType: {xml_escape(d["SystemType"])}<br/>Inst_year: {xml_escape(d["Inst_year"])}<br/>Issue: {xml_escape(d["Issue"])}<br/>ID: {xml_escape(d["ID1"])}]]></description>
+      <styleUrl>#{style_id}</styleUrl>
+      <LineString><tessellate>1</tessellate><coordinates>{cs}</coordinates></LineString>
+    </Placemark>\\n'''
+    return pms
+
+def make_point_pm(pts, style_id):
+    pms=''
+    for pt in pts:
+        pms+=f'''    <Placemark>
+      <name>{xml_escape(pt["name"])}</name>
+      <description><![CDATA[Type: {xml_escape(pt["feat_type"])}<br/>Issue: {xml_escape(pt["issue"])}<br/>ID: {xml_escape(pt["id1"])}<br/>Lat: {pt["lat"]:.6f}<br/>Lon: {pt["lon"]:.6f}]]></description>
+      <styleUrl>#{style_id}</styleUrl>
+      <Point><coordinates>{pt["lon"]},{pt["lat"]},0</coordinates></Point>
+    </Placemark>\\n'''
+    return pms
+
+if fm=='lp':
+    lf='  <Folder>\\n    <name>Cable</name>\\n'
+    rf='  <Folder>\\n    <name>Repeater</name>\\n'
+    ef='  <Folder>\\n    <name>Equaliser</name>\\n'
+    for sn in names:
+        has_l=sn in line_data or sn in line_oss_data
+        if has_l:
+            lf+=f'    <Folder>\\n      <name>{xml_escape(sn)}</name>\\n'
+            if sn in line_data: lf+=make_line_pm(sn,line_data[sn],'lineStyle')
+            if sn in line_oss_data: lf+=make_line_pm(sn,line_oss_data[sn],'lineOssStyle',' (OSS)')
+            lf+='    </Folder>\\n'
+        if sn in point_data:
+            for ft,pts in point_data[sn].items():
+                sid='equaliserStyle' if 'equaliser' in ft.lower() else 'repeaterStyle'
+                if 'equaliser' in ft.lower():
+                    ef+=f'    <Folder>\\n      <name>{xml_escape(sn)}</name>\\n'
+                    ef+=make_point_pm(pts,sid)
+                    ef+='    </Folder>\\n'
+                else:
+                    rf+=f'    <Folder>\\n      <name>{xml_escape(sn)}</name>\\n'
+                    rf+=make_point_pm(pts,sid)
+                    rf+='    </Folder>\\n'
+    lf+='  </Folder>\\n'; rf+='  </Folder>\\n'; ef+='  </Folder>\\n'
+    folder_xml=lf+rf+ef
+else:
+    folder_xml=''
+    for sn in names:
+        folder_xml+=f'  <Folder>\\n    <name>{xml_escape(sn)}</name>\\n'
+        if sn in line_data: folder_xml+=make_line_pm(sn,line_data[sn],'lineStyle')
+        if sn in line_oss_data: folder_xml+=make_line_pm(sn,line_oss_data[sn],'lineOssStyle',' (OSS)')
+        if sn in point_data:
+            for ft,pts in point_data[sn].items():
+                sid='equaliserStyle' if 'equaliser' in ft.lower() else 'repeaterStyle'
+                folder_xml+=f'    <Folder>\\n      <name>{xml_escape(ft)}</name>\\n'
+                folder_xml+=make_point_pm(pts,sid)
+                folder_xml+='    </Folder>\\n'
+        folder_xml+='  </Folder>\\n'
+
+dn=str(doc_name)
+result=f"""<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>{xml_escape(dn)}</name>
+{styles}
+{folder_xml}</Document>
+</kml>"""
+result
+  `);
+
+  hideProgress('gen');
+  log(`KML生成完了 (${selected.length}件)`);
+
+  // ダウンロード
+  const blob = new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = outName + '.kml';
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`ダウンロード: ${outName}.kml`);
+}
+
+// ===== 起動 =====
+window.addEventListener('load', initPyodide);
+</script>
+</body>
+</html>
