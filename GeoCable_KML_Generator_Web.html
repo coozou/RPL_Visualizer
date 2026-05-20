@@ -540,6 +540,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mapbox/leaflet-pip@1.1.0/leaflet-pip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.27.3/full/pyodide.js"></script>
 <script type="text/javascript">
 // ===== ファイル管理 =====
@@ -1079,7 +1080,36 @@ function showMap() {
 
   const rawLayer = omnivore.kml.parse(window._lastKmlContent);
 
-  kmlLayer = L.geoJson(rawLayer.toGeoJSON(), {
+  // 日付変更線をまたぐラインを分割
+  function splitAntimeridian(geojson) {
+    const features = [];
+    geojson.features.forEach(f => {
+      if (f.geometry.type !== 'LineString') {
+        features.push(f); return;
+      }
+      const coords = f.geometry.coordinates;
+      const segments = [[]];
+      for (let i = 0; i < coords.length; i++) {
+        segments[segments.length-1].push(coords[i]);
+        if (i < coords.length-1) {
+          const diff = Math.abs(coords[i+1][0] - coords[i][0]);
+          if (diff > 180) {
+            segments.push([]);
+          }
+        }
+      }
+      segments.forEach(seg => {
+        if (seg.length >= 2) {
+          features.push({...f, geometry: {type:'LineString', coordinates: seg}});
+        }
+      });
+    });
+    return {...geojson, features};
+  }
+
+  const geoJsonData = splitAntimeridian(rawLayer.toGeoJSON());
+
+  kmlLayer = L.geoJson(geoJsonData, {
     style: function(feature) {
       const name = (feature.properties && feature.properties.name) || '';
       const styleId = placemarkStyles[name] || 'lineStyle';
