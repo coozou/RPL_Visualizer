@@ -1039,18 +1039,40 @@ function showMap() {
     map.removeLayer(kmlLayer);
   }
 
-  kmlLayer = omnivore.kml.parse(window._lastKmlContent)
+  const customLayer = L.geoJson(null, {
+    style: function(feature) {
+      const name = feature.properties.name || '';
+      const isOss = name.includes('(OSS)');
+      return {
+        color: isOss ? '#c8c8c8' : '#ffffff',
+        weight: isOss ? 0.3 : 1,
+        opacity: 1
+      };
+    },
+    pointToLayer: function(feature, latlng) {
+      return L.circleMarker(latlng, {
+        radius: 1.5,
+        fillColor: '#ffff00',
+        color: '#ffff00',
+        weight: 0.5,
+        opacity: 1,
+        fillOpacity: 1
+      });
+    },
+    onEachFeature: function(feature, layer) {
+      if (feature.properties) {
+        const p = feature.properties;
+        const desc = (p.description || '').replace(/<br\/>/g, '<br/>');
+        layer.bindPopup(`<b>${p.name || ''}</b><br/>${desc}`, {maxWidth: 300});
+      }
+    }
+  });
+
+  kmlLayer = omnivore.kml.parse(window._lastKmlContent, null, customLayer)
     .on('ready', function() {
       if (this.getLayers().length > 0) {
         map.fitBounds(this.getBounds());
       }
-      this.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-          const p = layer.feature.properties;
-          const desc = p.description || '';
-          layer.bindPopup(`<b>${p.name || ''}</b><br/>${desc.replace(/<br\/>/g,'<br/>')}`, {maxWidth: 300});
-        }
-      });
     })
     .addTo(map);
 
