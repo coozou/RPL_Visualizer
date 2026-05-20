@@ -1039,21 +1039,42 @@ function showMap() {
     map.removeLayer(kmlLayer);
   }
 
-  // KMLをパースしてフォルダ情報からRepeater/Equaliserを判別
+  // KMLからスタイル・フォルダ情報を読み取る
   const parser = new DOMParser();
   const kmlDoc = parser.parseFromString(window._lastKmlContent, 'text/xml');
-  const pointTypes = {};  // name -> 'repeater' or 'equaliser'
 
-  kmlDoc.querySelectorAll('Folder').forEach(folder => {
-    const folderName = folder.querySelector(':scope > name')?.textContent || '';
-    const isEqualiser = folderName.toLowerCase().includes('equaliser');
-    const isRepeater = folderName.toLowerCase().includes('repeater');
-    if (isEqualiser || isRepeater) {
-      folder.querySelectorAll('Placemark').forEach(pm => {
-        const pmName = pm.querySelector('name')?.textContent || '';
-        pointTypes[pmName] = isEqualiser ? 'equaliser' : 'repeater';
-      });
-    }
+  // KML色変換 AABBGGRR → #RRGGBB
+  function kmlColorToHex(kmlColor) {
+    if (!kmlColor || kmlColor.length < 8) return '#ffffff';
+    const r = kmlColor.slice(6, 8);
+    const g = kmlColor.slice(4, 6);
+    const b = kmlColor.slice(2, 4);
+    return '#' + r + g + b;
+  }
+
+  // Styleを読み取る
+  const styles = {};
+  kmlDoc.querySelectorAll('Style').forEach(style => {
+    const id = style.getAttribute('id');
+    if (!id) return;
+    const lineColor = style.querySelector('LineStyle > color')?.textContent || '';
+    const lineWidth = parseFloat(style.querySelector('LineStyle > width')?.textContent || '1');
+    const iconColor = style.querySelector('IconStyle > color')?.textContent || '';
+    const iconScale = parseFloat(style.querySelector('IconStyle > scale')?.textContent || '1');
+    styles[id] = {
+      lineColor: kmlColorToHex(lineColor),
+      lineWidth: lineWidth,
+      iconColor: kmlColorToHex(iconColor),
+      iconScale: iconScale,
+    };
+  });
+
+  // PlacemarkのstyleUrl→styleIdマッピング
+  const placemarkStyles = {};
+  kmlDoc.querySelectorAll('Placemark').forEach(pm => {
+    const name = pm.querySelector('name')?.textContent || '';
+    const styleUrl = pm.querySelector('styleUrl')?.textContent?.replace('#', '') || '';
+    placemarkStyles[name] = styleUrl;
   });
 
   const rawLayer = omnivore.kml.parse(window._lastKmlContent);
@@ -1061,17 +1082,19 @@ function showMap() {
   kmlLayer = L.geoJson(rawLayer.toGeoJSON(), {
     style: function(feature) {
       const name = (feature.properties && feature.properties.name) || '';
-      const isOss = name.includes('(OSS)');
+      const styleId = placemarkStyles[name] || 'lineStyle';
+      const s = styles[styleId] || {};
       return {
-        color: isOss ? '#c8c8c8' : '#ffffff',
-        weight: isOss ? 0.3 : 1,
+        color: s.lineColor || '#ffffff',
+        weight: s.lineWidth || 1,
         opacity: 1
       };
     },
     pointToLayer: function(feature, latlng) {
       const name = (feature.properties && feature.properties.name) || '';
-      const ptype = pointTypes[name] || 'repeater';
-      const color = ptype === 'equaliser' ? '#00ffff' : '#ffff00';
+      const styleId = placemarkStyles[name] || 'repeaterStyle';
+      const s = styles[styleId] || {};
+      const color = s.iconColor || '#ffff00';
       return L.circleMarker(latlng, {
         radius: 1,
         fillColor: color,
