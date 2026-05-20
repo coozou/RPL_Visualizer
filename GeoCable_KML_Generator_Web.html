@@ -497,6 +497,7 @@
 
     <div class="action-row">
       <button class="btn btn-primary" id="btn-gen" onclick="generateKML()" disabled>KML生成</button>
+      <button class="btn" id="btn-show-map" onclick="showMap()" style="display:none;background:#1a6b8a;color:white;">地図で表示</button>
     </div>
 
   </div>
@@ -527,8 +528,18 @@
   </div>
 </div>
 
+<div id="map-area" style="display:none; height:400px; border-top:2px solid var(--border);">
+  <div style="background:var(--bg); padding:4px 16px; display:flex; align-items:center; gap:8px;">
+    <span style="font-size:0.82rem; font-weight:bold; color:var(--accent);">━ 地図表示 ━</span>
+    <button onclick="closeMap()" style="background:var(--danger);color:white;border:none;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:0.78rem;">✕ 閉じる</button>
+  </div>
+  <div id="map" style="height:360px;"></div>
+</div>
 <footer>Developed by: Ryo Shinozaki</footer>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.27.3/full/pyodide.js"></script>
 <script type="text/javascript">
 // ===== ファイル管理 =====
@@ -991,15 +1002,63 @@ result
   hideProgress('gen');
   log(`KML生成完了 (${selected.length}件)`);
 
-  // ダウンロード
+  // ダウンロード＆地図表示用に保持
   const blob = new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = outName + '.kml';
   a.click();
-  URL.revokeObjectURL(url);
   log(`ダウンロード: ${outName}.kml`);
+
+  // 地図表示ボタンを追加
+  window._lastKmlContent = kmlContent;
+  window._lastKmlUrl = URL.createObjectURL(new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'}));
+  log('「地図で表示」ボタンで地図に表示できます');
+  document.getElementById('btn-show-map').style.display = 'inline-block';
+}
+
+// ===== 地図表示 =====
+let map = null;
+let kmlLayer = null;
+
+function showMap() {
+  const mapArea = document.getElementById('map-area');
+  mapArea.style.display = 'block';
+  mapArea.scrollIntoView({behavior: 'smooth'});
+
+  if (!map) {
+    map = L.map('map').setView([20, 120], 3);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(map);
+  }
+
+  if (kmlLayer) {
+    map.removeLayer(kmlLayer);
+  }
+
+  kmlLayer = omnivore.kml.parse(window._lastKmlContent)
+    .on('ready', function() {
+      if (this.getLayers().length > 0) {
+        map.fitBounds(this.getBounds());
+      }
+      this.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+          const p = layer.feature.properties;
+          const desc = p.description || '';
+          layer.bindPopup(`<b>${p.name || ''}</b><br/>${desc.replace(/<br\/>/g,'<br/>')}`, {maxWidth: 300});
+        }
+      });
+    })
+    .addTo(map);
+
+  setTimeout(() => map.invalidateSize(), 100);
+}
+
+function closeMap() {
+  document.getElementById('map-area').style.display = 'none';
 }
 
 // ===== 起動 =====
