@@ -485,7 +485,6 @@
         <div class="form-row">
           <span class="form-label">地図の種類</span>
           <select class="form-select" id="map-tile-type" onchange="switchTileLayer()">
-            <option value="osm">OpenStreetMap</option>
             <option value="esri-sat">Esri 衛星写真</option>
             <option value="openseamap">OpenSeaMap（航海図）</option>
           </select>
@@ -1089,12 +1088,6 @@ function saveExtractCSV() {
 //  Route Map (Leaflet)
 // =============================================
 const TILE_LAYERS = {
-  'osm': {
-    type: 'tile',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19
-  },
   'esri-sat': {
     type: 'tile',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
