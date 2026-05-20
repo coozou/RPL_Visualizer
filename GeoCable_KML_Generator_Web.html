@@ -816,7 +816,7 @@ def parse_single_geom(decoded,start):
     i=0
     while i+2<len(vals):
         yv,z,xv=vals[i],vals[i+1],vals[i+2]
-        if z==0.0 and abs(yv)<10000000 and abs(xv)<10000000 and yv!=0 and xv!=0:
+        if z==0.0 and abs(yv)<20000000 and abs(xv)<20000000 and yv!=0 and xv!=0:
             ry.append(yv); rx.append(xv)
         i+=3
     coords=[]
