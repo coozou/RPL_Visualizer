@@ -488,7 +488,7 @@
             <option value="osm">OpenStreetMap</option>
             <option value="esri-sat">Esri 衛星写真</option>
             <option value="openseamap">OpenSeaMap（航海図）</option>
-            <option value="esri-ocean">Esri Ocean（水深図）</option>
+            <option value="gebco">GEBCO（水深図・全zoom対応）</option>
           </select>
         </div>
         <div class="form-row">
@@ -1108,14 +1108,20 @@ const TILE_LAYERS = {
     maxZoom: 19,
     overlayUrl: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'
   },
-  'esri-ocean': {
-    // Esri Ocean Base: 等深線・水深色（zoom13まで）zoom14以降は衛星補完
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© Esri, GEBCO, NOAA, National Geographic',
-    maxNative: 13,
+  'gebco': {
+    // GEBCO: WMS方式で全ズーム対応の水深図
+    // L.tileLayer.wms を使用するためtype:'wms'フラグで識別
+    type: 'wms',
+    url: 'https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv',
+    layers: 'GEBCO_LATEST_2',
+    attribution: '© GEBCO, IOC, IHO',
     maxZoom: 19,
-    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}'
+    format: 'image/png',
+    transparent: true,
+    // WMSが使えない場合のフォールバック: Esri Ocean + 衛星補完
+    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+    fallbackMaxNative: 13,
+    fallbackSatUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
   }
 };
 let currentTileLayer = null;
@@ -1130,6 +1136,32 @@ function initMap() {
 
 let overlayTileLayer = null;
 
+function _addEsriOceanFallback(cfg) {
+  // GEBCO WMS失敗時: Esri Ocean(zoom13まで) + 衛星写真(zoom14以降)
+  currentTileLayer = L.tileLayer(cfg.fallbackUrl, {
+    attribution: cfg.attribution,
+    maxNativeZoom: cfg.fallbackMaxNative,
+    maxZoom: cfg.maxZoom
+  });
+  fallbackTileLayer = L.tileLayer(cfg.fallbackSatUrl, {
+    attribution: '© Esri, Maxar',
+    maxZoom: cfg.maxZoom,
+    opacity: 0.0
+  });
+  currentTileLayer.addTo(mapInstance);
+  fallbackTileLayer.addTo(mapInstance);
+  mapInstance.on('zoomend.tilelayer', () => {
+    const z = mapInstance.getZoom();
+    if(z > cfg.fallbackMaxNative) {
+      currentTileLayer.setOpacity(0);
+      fallbackTileLayer.setOpacity(1);
+    } else {
+      currentTileLayer.setOpacity(1);
+      fallbackTileLayer.setOpacity(0);
+    }
+  });
+}
+
 function switchTileLayer() {
   if(!mapInstance) return;
   const key = document.getElementById('map-tile-type').value;
@@ -1141,39 +1173,28 @@ function switchTileLayer() {
   if(overlayTileLayer)  { mapInstance.removeLayer(overlayTileLayer);  overlayTileLayer  = null; }
   mapInstance.off('zoomend.tilelayer');
 
-  if(cfg.overlayUrl && cfg.fallbackUrl) {
-    // Esri Ocean: zoom13まで水深図+ラベルオーバーレイ、zoom14以降は衛星補完
-    currentTileLayer = L.tileLayer(cfg.url, {
-      attribution: cfg.attribution,
-      maxNativeZoom: cfg.maxNative,
-      maxZoom: cfg.maxZoom
-    });
-    overlayTileLayer = L.tileLayer(cfg.overlayUrl, {
-      attribution: cfg.attribution,
-      maxNativeZoom: cfg.maxNative,
-      maxZoom: cfg.maxZoom,
-      opacity: 0.8
-    });
-    fallbackTileLayer = L.tileLayer(cfg.fallbackUrl, {
-      attribution: '© Esri, Maxar',
-      maxZoom: cfg.maxZoom,
-      opacity: 0.0
-    });
-    currentTileLayer.addTo(mapInstance);
-    overlayTileLayer.addTo(mapInstance);
-    fallbackTileLayer.addTo(mapInstance);
-    mapInstance.on('zoomend.tilelayer', () => {
-      const z = mapInstance.getZoom();
-      if(z > cfg.maxNative) {
-        currentTileLayer.setOpacity(0);
-        overlayTileLayer.setOpacity(0);
-        fallbackTileLayer.setOpacity(1);
-      } else {
-        currentTileLayer.setOpacity(1);
-        overlayTileLayer.setOpacity(0.8);
-        fallbackTileLayer.setOpacity(0);
-      }
-    });
+  if(cfg.type === 'wms') {
+    // GEBCO WMS: 全ズーム対応の水深図
+    // まずWMSで試み、失敗したらEsri Ocean+衛星補完にフォールバック
+    try {
+      currentTileLayer = L.tileLayer.wms(cfg.url, {
+        layers: cfg.layers,
+        format: cfg.format,
+        transparent: cfg.transparent,
+        attribution: cfg.attribution,
+        maxZoom: cfg.maxZoom,
+        version: '1.1.1'
+      });
+      currentTileLayer.addTo(mapInstance);
+      // WMSエラー検出: タイルロード失敗時にフォールバック
+      currentTileLayer.on('tileerror', () => {
+        console.warn('GEBCO WMS失敗、Esri Oceanにフォールバック');
+        mapInstance.removeLayer(currentTileLayer);
+        _addEsriOceanFallback(cfg);
+      });
+    } catch(e) {
+      _addEsriOceanFallback(cfg);
+    }
 
   } else if(cfg.overlayUrl) {
     // OpenSeaMap: OSMベース + 航海情報オーバーレイ
