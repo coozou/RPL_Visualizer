@@ -488,7 +488,7 @@
             <option value="osm">OpenStreetMap</option>
             <option value="esri-sat">Esri 衛星写真</option>
             <option value="openseamap">OpenSeaMap（航海図）</option>
-            <option value="nautical">OpenNauticalChart（海図）</option>
+            <option value="esri-ocean">Esri Ocean（水深図）</option>
           </select>
         </div>
         <div class="form-row">
@@ -1108,13 +1108,14 @@ const TILE_LAYERS = {
     maxZoom: 19,
     overlayUrl: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'
   },
-  'nautical': {
-    // OpenNauticalChart: zoom17まで対応の専用海図
-    url: 'https://tiles.openseamap.org/nautical/{z}/{x}/{y}.png',
-    attribution: '© OpenSeaMap, © OpenStreetMap contributors',
-    maxNative: 17,
+  'esri-ocean': {
+    // Esri Ocean Base: 等深線・水深色（zoom13まで）zoom14以降は衛星補完
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, GEBCO, NOAA, National Geographic',
+    maxNative: 13,
     maxZoom: 19,
-    fallbackUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}'
   }
 };
 let currentTileLayer = null;
@@ -1140,7 +1141,41 @@ function switchTileLayer() {
   if(overlayTileLayer)  { mapInstance.removeLayer(overlayTileLayer);  overlayTileLayer  = null; }
   mapInstance.off('zoomend.tilelayer');
 
-  if(cfg.overlayUrl) {
+  if(cfg.overlayUrl && cfg.fallbackUrl) {
+    // Esri Ocean: zoom13まで水深図+ラベルオーバーレイ、zoom14以降は衛星補完
+    currentTileLayer = L.tileLayer(cfg.url, {
+      attribution: cfg.attribution,
+      maxNativeZoom: cfg.maxNative,
+      maxZoom: cfg.maxZoom
+    });
+    overlayTileLayer = L.tileLayer(cfg.overlayUrl, {
+      attribution: cfg.attribution,
+      maxNativeZoom: cfg.maxNative,
+      maxZoom: cfg.maxZoom,
+      opacity: 0.8
+    });
+    fallbackTileLayer = L.tileLayer(cfg.fallbackUrl, {
+      attribution: '© Esri, Maxar',
+      maxZoom: cfg.maxZoom,
+      opacity: 0.0
+    });
+    currentTileLayer.addTo(mapInstance);
+    overlayTileLayer.addTo(mapInstance);
+    fallbackTileLayer.addTo(mapInstance);
+    mapInstance.on('zoomend.tilelayer', () => {
+      const z = mapInstance.getZoom();
+      if(z > cfg.maxNative) {
+        currentTileLayer.setOpacity(0);
+        overlayTileLayer.setOpacity(0);
+        fallbackTileLayer.setOpacity(1);
+      } else {
+        currentTileLayer.setOpacity(1);
+        overlayTileLayer.setOpacity(0.8);
+        fallbackTileLayer.setOpacity(0);
+      }
+    });
+
+  } else if(cfg.overlayUrl) {
     // OpenSeaMap: OSMベース + 航海情報オーバーレイ
     currentTileLayer = L.tileLayer(cfg.url, {
       attribution: cfg.attribution, maxZoom: cfg.maxZoom
@@ -1150,31 +1185,6 @@ function switchTileLayer() {
     });
     currentTileLayer.addTo(mapInstance);
     overlayTileLayer.addTo(mapInstance);
-
-  } else if(cfg.fallbackUrl) {
-    // OpenNauticalChart: zoom17まで専用海図、zoom18以降はOSMで補完
-    currentTileLayer = L.tileLayer(cfg.url, {
-      attribution: cfg.attribution,
-      maxNativeZoom: cfg.maxNative,
-      maxZoom: cfg.maxZoom
-    });
-    fallbackTileLayer = L.tileLayer(cfg.fallbackUrl, {
-      attribution: cfg.attribution,
-      maxZoom: cfg.maxZoom,
-      opacity: 0.0
-    });
-    currentTileLayer.addTo(mapInstance);
-    fallbackTileLayer.addTo(mapInstance);
-    mapInstance.on('zoomend.tilelayer', () => {
-      const z = mapInstance.getZoom();
-      if(z > cfg.maxNative) {
-        currentTileLayer.setOpacity(0);
-        fallbackTileLayer.setOpacity(1);
-      } else {
-        currentTileLayer.setOpacity(1);
-        fallbackTileLayer.setOpacity(0);
-      }
-    });
 
   } else {
     // OSM / Esri衛星: シンプル単層
