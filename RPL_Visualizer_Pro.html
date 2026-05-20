@@ -1100,9 +1100,15 @@ const TILE_LAYERS = {
     maxZoom: 19
   },
   'esri-ocean': {
+    // Esri Ocean Base (zoom13まで) + zoom14以降はOSMで補完
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© Esri, GEBCO, NOAA, National Geographic',
-    maxZoom: 13
+    attribution: '© Esri, GEBCO, NOAA, National Geographic | © OpenStreetMap contributors',
+    maxZoom: 13,
+    fallback: {
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      minZoom: 14,
+      maxZoom: 19
+    }
   }
 };
 let currentTileLayer = null;
@@ -1114,15 +1120,38 @@ function initMap() {
   const cfg = TILE_LAYERS[key];
   currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
   currentTileLayer.addTo(mapInstance);
+  if(cfg.fallback) {
+    fallbackTileLayer = L.tileLayer(cfg.fallback.url, {
+      minZoom: cfg.fallback.minZoom, maxZoom: cfg.fallback.maxZoom, opacity: 0.85
+    });
+    fallbackTileLayer.addTo(mapInstance);
+  }
 }
+
+let fallbackTileLayer = null;
 
 function switchTileLayer() {
   if(!mapInstance) return;
   const key = document.getElementById('map-tile-type').value;
   const cfg = TILE_LAYERS[key];
-  if(currentTileLayer) mapInstance.removeLayer(currentTileLayer);
+  // 既存レイヤー削除
+  if(currentTileLayer) { mapInstance.removeLayer(currentTileLayer); currentTileLayer = null; }
+  if(fallbackTileLayer) { mapInstance.removeLayer(fallbackTileLayer); fallbackTileLayer = null; }
+  // メインレイヤー追加
   currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
   currentTileLayer.addTo(mapInstance);
+  // フォールバック（Esri海洋図のzoom14以降をOSMで補完）
+  if(cfg.fallback) {
+    fallbackTileLayer = L.tileLayer(cfg.fallback.url, {
+      attribution: cfg.attribution,
+      minZoom: cfg.fallback.minZoom,
+      maxZoom: cfg.fallback.maxZoom,
+      opacity: 0.85
+    });
+    fallbackTileLayer.addTo(mapInstance);
+  }
+  // maxNativeZoomを超えた場合の警告
+  mapInstance.setMaxZoom(cfg.fallback ? cfg.fallback.maxZoom : cfg.maxZoom);
 }
 
 async function drawRouteMap() {
