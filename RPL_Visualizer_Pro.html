@@ -483,6 +483,14 @@
       <div class="card">
         <div class="card-title">マップ設定</div>
         <div class="form-row">
+          <span class="form-label">地図の種類</span>
+          <select class="form-select" id="map-tile-type" onchange="switchTileLayer()">
+            <option value="osm">OpenStreetMap</option>
+            <option value="esri-sat">Esri 衛星写真</option>
+            <option value="esri-ocean">Esri 海洋図</option>
+          </select>
+        </div>
+        <div class="form-row">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
             <input type="checkbox" id="map-show-labels" checked style="accent-color:var(--accent2)"> ファイル名ラベル表示
           </label>
@@ -1080,13 +1088,41 @@ function saveExtractCSV() {
 // =============================================
 //  Route Map (Leaflet)
 // =============================================
+const TILE_LAYERS = {
+  'osm': {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  },
+  'esri-sat': {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, Maxar, Earthstar Geographics',
+    maxZoom: 19
+  },
+  'esri-ocean': {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, GEBCO, NOAA, National Geographic',
+    maxZoom: 13
+  }
+};
+let currentTileLayer = null;
+
 function initMap() {
-  const container = document.getElementById('map-container');
   if(mapInstance) return;
   mapInstance = L.map('map-container', {center:[0,130], zoom:3});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:'© OpenStreetMap contributors', maxZoom:18
-  }).addTo(mapInstance);
+  const key = document.getElementById('map-tile-type')?.value || 'osm';
+  const cfg = TILE_LAYERS[key];
+  currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
+  currentTileLayer.addTo(mapInstance);
+}
+
+function switchTileLayer() {
+  if(!mapInstance) return;
+  const key = document.getElementById('map-tile-type').value;
+  const cfg = TILE_LAYERS[key];
+  if(currentTileLayer) mapInstance.removeLayer(currentTileLayer);
+  currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
+  currentTileLayer.addTo(mapInstance);
 }
 
 async function drawRouteMap() {
