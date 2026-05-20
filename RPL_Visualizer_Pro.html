@@ -487,7 +487,8 @@
           <select class="form-select" id="map-tile-type" onchange="switchTileLayer()">
             <option value="osm">OpenStreetMap</option>
             <option value="esri-sat">Esri 衛星写真</option>
-            <option value="esri-ocean">Esri 海洋図</option>
+            <option value="openseamap">OpenSeaMap（航海図）</option>
+            <option value="nautical">OpenNauticalChart（海図）</option>
           </select>
         </div>
         <div class="form-row">
@@ -501,6 +502,7 @@
         <div class="btn-row">
           <button class="btn btn-primary" onclick="drawRouteMap()" id="map-run-btn" disabled>🗺 マップ描画</button>
           <button class="btn btn-ghost" onclick="clearMap()">クリア</button>
+          <button class="btn btn-teal" onclick="openNavionics()" title="現在の地図中心をNavionics Web Viewerで開く">🧭 Navionicsで開く</button>
         </div>
       </div>
       <div id="map-container"></div>
@@ -1099,13 +1101,20 @@ const TILE_LAYERS = {
     attribution: '© Esri, Maxar, Earthstar Geographics',
     maxZoom: 19
   },
-  'esri-ocean': {
-    // zoom13まで海洋図、zoom14以降は衛星写真で自動補完
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© Esri, GEBCO, NOAA, National Geographic',
-    maxNative: 13,
+  'openseamap': {
+    // OSMベース地図 + OpenSeaMap航海情報オーバーレイ
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors, © OpenSeaMap',
     maxZoom: 19,
-    fallbackUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    overlayUrl: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'
+  },
+  'nautical': {
+    // OpenNauticalChart: zoom17まで対応の専用海図
+    url: 'https://tiles.openseamap.org/nautical/{z}/{x}/{y}.png',
+    attribution: '© OpenSeaMap, © OpenStreetMap contributors',
+    maxNative: 17,
+    maxZoom: 19,
+    fallbackUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
   }
 };
 let currentTileLayer = null;
@@ -1118,30 +1127,44 @@ function initMap() {
   switchTileLayer();
 }
 
+let overlayTileLayer = null;
+
 function switchTileLayer() {
   if(!mapInstance) return;
   const key = document.getElementById('map-tile-type').value;
   const cfg = TILE_LAYERS[key];
+
+  // 既存レイヤーを全削除
   if(currentTileLayer)  { mapInstance.removeLayer(currentTileLayer);  currentTileLayer  = null; }
   if(fallbackTileLayer) { mapInstance.removeLayer(fallbackTileLayer); fallbackTileLayer = null; }
+  if(overlayTileLayer)  { mapInstance.removeLayer(overlayTileLayer);  overlayTileLayer  = null; }
+  mapInstance.off('zoomend.tilelayer');
 
-  if(cfg.fallbackUrl) {
-    // 海洋図: zoom13まで海洋図タイル、zoom14以降は衛星写真タイルを重ねる
+  if(cfg.overlayUrl) {
+    // OpenSeaMap: OSMベース + 航海情報オーバーレイ
+    currentTileLayer = L.tileLayer(cfg.url, {
+      attribution: cfg.attribution, maxZoom: cfg.maxZoom
+    });
+    overlayTileLayer = L.tileLayer(cfg.overlayUrl, {
+      attribution: cfg.attribution, maxZoom: cfg.maxZoom, opacity: 0.9
+    });
+    currentTileLayer.addTo(mapInstance);
+    overlayTileLayer.addTo(mapInstance);
+
+  } else if(cfg.fallbackUrl) {
+    // OpenNauticalChart: zoom17まで専用海図、zoom18以降はOSMで補完
     currentTileLayer = L.tileLayer(cfg.url, {
       attribution: cfg.attribution,
-      maxNativeZoom: cfg.maxNative,  // タイルの実在上限
-      maxZoom: cfg.maxZoom           // 地図自体は19まで拡大可
+      maxNativeZoom: cfg.maxNative,
+      maxZoom: cfg.maxZoom
     });
     fallbackTileLayer = L.tileLayer(cfg.fallbackUrl, {
-      attribution: '© Esri, Maxar',
-      maxNativeZoom: 19,
+      attribution: cfg.attribution,
       maxZoom: cfg.maxZoom,
-      opacity: 0.0                   // 初期は透明
+      opacity: 0.0
     });
     currentTileLayer.addTo(mapInstance);
     fallbackTileLayer.addTo(mapInstance);
-    // ズームに応じて衛星写真の不透明度を切り替え
-    mapInstance.off('zoomend.tilelayer');
     mapInstance.on('zoomend.tilelayer', () => {
       const z = mapInstance.getZoom();
       if(z > cfg.maxNative) {
@@ -1152,12 +1175,29 @@ function switchTileLayer() {
         fallbackTileLayer.setOpacity(0);
       }
     });
+
   } else {
-    currentTileLayer = L.tileLayer(cfg.url, {attribution: cfg.attribution, maxZoom: cfg.maxZoom});
+    // OSM / Esri衛星: シンプル単層
+    currentTileLayer = L.tileLayer(cfg.url, {
+      attribution: cfg.attribution, maxZoom: cfg.maxZoom
+    });
     currentTileLayer.addTo(mapInstance);
-    mapInstance.off('zoomend.tilelayer');
   }
+
   mapInstance.setMaxZoom(cfg.maxZoom);
+}
+
+function openNavionics() {
+  let lat = 0, lon = 130, zoom = 8;
+  if(mapInstance) {
+    const c = mapInstance.getCenter();
+    lat = c.lat.toFixed(4);
+    lon = c.lng.toFixed(4);
+    // LeafletのzoomをNavionicsのzlに変換（ほぼ同じスケール）
+    zoom = mapInstance.getZoom();
+  }
+  const url = `https://webapp.navionics.com/?lang=ja#boating&zl=${zoom}&att=1&idp=${lat},${lon}`;
+  window.open(url, '_blank');
 }
 
 async function drawRouteMap() {
