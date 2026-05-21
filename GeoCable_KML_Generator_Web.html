@@ -540,7 +540,9 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.antimeridian@1.0.1/dist/Leaflet.Antimeridian.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.antimeridian@1.0.1/dist/Leaflet.Antimeridian.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.27.3/full/pyodide.js"></script>
 <script type="text/javascript">
 // ===== ファイル管理 =====
@@ -1124,18 +1126,10 @@ function showMap() {
             if (Math.abs(diff) > 180) segments.push([]);
           }
         }
-        // 各セグメントを正側・負側の両方に描画（太平洋をまたぐラインを両側に表示）
-        const allSegs = [...segments];
-        if (segments.length > 1) {
-          // 正側コピー（+360）と負側コピー（-360）も追加
-          segments.forEach(seg => {
-            allSegs.push(seg.map(c => [c[0], c[1]+360]));
-            allSegs.push(seg.map(c => [c[0], c[1]-360]));
-          });
-        }
-        allSegs.forEach(seg => {
+        segments.forEach(seg => {
           if (seg.length >= 2) {
-            const line = L.polyline(seg, {
+            const LineCls = (typeof L.Polyline.AntimeridianWrap !== "undefined") ? L.Polyline.AntimeridianWrap : L.polyline;
+        const line = LineCls(seg, {
               color: s.lineColor || '#ffffff',
               weight: s.lineWidth || 1,
               opacity: 1
