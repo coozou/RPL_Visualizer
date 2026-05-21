@@ -1059,17 +1059,25 @@ function showMap() {
   if (!map) {
     map = L.map('map', {worldCopyJump: false}).setView([20, 120], 3);
 
-  // LeafletのlatLng wrapを無効化して180°超の経度を正しく描画
-  const origProject = L.CRS.EPSG3857.project.bind(L.CRS.EPSG3857);
-  L.CRS.EPSG3857.project = function(latlng) {
-    const ll = L.latLng(latlng.lat, latlng.lng); // wrapなし
-    return origProject(ll);
-  };
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 18,
       noWrap: false
     }).addTo(map);
+
+  // wrapなしでポリライン描画するサブクラス
+  L.PolylineNoWrap = L.Polyline.extend({
+    _projectLatlngs: function(latlngs, result, projectedBounds) {
+      const ring = [];
+      for (let i = 0; i < latlngs.length; i++) {
+        const ll = latlngs[i];
+        const point = map.options.crs.latLngToPoint(L.latLng(ll.lat, ll.lng), map._zoom);
+        ring.push(point);
+        if (projectedBounds) projectedBounds.extend(point);
+      }
+      result.push(ring);
+    }
+  });
   }
 
   if (kmlLayer) {
