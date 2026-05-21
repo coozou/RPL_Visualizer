@@ -540,9 +540,7 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet.antimeridian@1.0.1/dist/Leaflet.Antimeridian.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet.antimeridian@1.0.1/dist/Leaflet.Antimeridian.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.27.3/full/pyodide.js"></script>
 <script type="text/javascript">
 // ===== ファイル管理 =====
@@ -932,9 +930,21 @@ styles=f'''  <Style id="lineStyle"><LineStyle><color>{lc}</color><width>{lw}</wi
 names=list(selected_names)
 fm=str(folder_mode)
 
+def fix_antimeridian(coords):
+    if not coords: return coords
+    fixed = [coords[0]]
+    for i in range(1, len(coords)):
+        prev_lon = fixed[-1][0]
+        lon, lat = coords[i]
+        while lon - prev_lon > 180: lon -= 360
+        while prev_lon - lon > 180: lon += 360
+        fixed.append((lon, lat))
+    return fixed
+
 def make_line_pm(sys_name, d, style_id, suffix=''):
     pms=''
     for coords in d['geom_list']:
+        coords=fix_antimeridian(coords)
         cs=' '.join(f'{lon},{lat},0' for lon,lat in coords)
         pms+=f'''    <Placemark>
       <name>{xml_escape(sys_name)}{suffix}</name>
@@ -1048,6 +1058,13 @@ function showMap() {
 
   if (!map) {
     map = L.map('map', {worldCopyJump: false}).setView([20, 120], 3);
+
+  // LeafletのlatLng wrapを無効化して180°超の経度を正しく描画
+  const origProject = L.CRS.EPSG3857.project.bind(L.CRS.EPSG3857);
+  L.CRS.EPSG3857.project = function(latlng) {
+    const ll = L.latLng(latlng.lat, latlng.lng); // wrapなし
+    return origProject(ll);
+  };
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 18,
@@ -1126,7 +1143,8 @@ function showMap() {
             if (Math.abs(diff) > 180) segments.push([]);
           }
         }
-        segments.forEach(seg => {
+        const allSegs = [...segments];
+        allSegs.forEach(seg => {
           if (seg.length >= 2) {
             const LineCls = (typeof L.Polyline.AntimeridianWrap !== "undefined") ? L.Polyline.AntimeridianWrap : L.polyline;
         const line = LineCls(seg, {
