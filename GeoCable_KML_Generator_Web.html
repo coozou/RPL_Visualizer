@@ -497,7 +497,8 @@
 
     <div class="action-row">
       <button class="btn btn-primary" id="btn-gen" onclick="generateKML()" disabled>KML生成</button>
-      <button class="btn" id="btn-show-map" onclick="showMap()" style="display:none;background:#1a6b8a;color:white;">地図で表示</button>
+      <button class="btn" id="btn-gen-map" onclick="generateKMLandMap()" disabled style="background:#1a6b8a;color:white;">KML生成＋MAP</button>
+      <button class="btn" id="btn-show-map" onclick="showMap()" disabled style="background:#1a6b8a;color:white;">MAPのみ</button>
     </div>
 
   </div>
@@ -723,6 +724,8 @@ async function loadXML() {
   renderList();
   updateSelCount();
   document.getElementById('btn-gen').disabled = false;
+  document.getElementById('btn-gen-map').disabled = false;
+  document.getElementById('btn-show-map').disabled = false;
 }
 
 // ===== RGB→KML色変換 =====
@@ -927,9 +930,22 @@ styles=f'''  <Style id="lineStyle"><LineStyle><color>{lc}</color><width>{lw}</wi
 names=list(selected_names)
 fm=str(folder_mode)
 
+def fix_antimeridian(coords):
+    # 前の点との経度差が180超の場合、連続値に補正
+    if not coords: return coords
+    fixed = [coords[0]]
+    for i in range(1, len(coords)):
+        prev_lon = fixed[-1][0]
+        lon, lat = coords[i]
+        while lon - prev_lon > 180: lon -= 360
+        while prev_lon - lon > 180: lon += 360
+        fixed.append((lon, lat))
+    return fixed
+
 def make_line_pm(sys_name, d, style_id, suffix=''):
     pms=''
     for coords in d['geom_list']:
+        coords=fix_antimeridian(coords)
         cs=' '.join(f'{lon},{lat},0' for lon,lat in coords)
         pms+=f'''    <Placemark>
       <name>{xml_escape(sys_name)}{suffix}</name>
@@ -1015,7 +1031,13 @@ result
   window._lastKmlContent = kmlContent;
   window._lastKmlUrl = URL.createObjectURL(new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'}));
   log('「地図で表示」ボタンで地図に表示できます');
-  document.getElementById('btn-show-map').style.display = 'inline-block';
+  // MAP用データ準備完了
+}
+
+// ===== KML生成＋MAP =====
+async function generateKMLandMap() {
+  await generateKML();
+  if (window._lastKmlContent) showMap();
 }
 
 // ===== 地図表示 =====
@@ -1028,11 +1050,10 @@ function showMap() {
   mapArea.scrollIntoView({behavior: 'smooth'});
 
   if (!map) {
-    map = L.map('map', {worldCopyJump: false, maxBoundsViscosity: 0}).setView([20, 120], 3);
+    map = L.map('map').setView([20, 120], 3);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
-      maxZoom: 18,
-      noWrap: false
+      maxZoom: 18
     }).addTo(map);
   }
 
@@ -1080,40 +1101,7 @@ function showMap() {
 
   const rawLayer = omnivore.kml.parse(window._lastKmlContent);
 
-  // 日付変更線をまたぐラインを経度連続値に変換（分断しない）
-  function fixAntimeridian(geojson) {
-    const features = [];
-    geojson.features.forEach(f => {
-      if (f.geometry.type !== 'LineString') {
-        features.push(f); return;
-      }
-      const coords = f.geometry.coordinates;
-      // まず前の点との差分で連続化
-      const fixed = [coords[0].slice()];
-      for (let i = 1; i < coords.length; i++) {
-        const prev = fixed[fixed.length-1];
-        let lon = coords[i][0];
-        const lat = coords[i][1];
-        while (lon - prev[0] > 180) lon -= 360;
-        while (prev[0] - lon > 180) lon += 360;
-        fixed.push([lon, lat]);
-      }
-      // 全体の経度範囲を-180〜360に収める（中心が0〜180になるよう調整）
-      const lons = fixed.map(c => c[0]);
-      const minLon = Math.min(...lons);
-      const maxLon = Math.max(...lons);
-      const centerLon = (minLon + maxLon) / 2;
-      let offset = 0;
-      if (centerLon > 180) offset = -360;
-      else if (centerLon < -180) offset = 360;
-      const adjusted = fixed.map(c => [c[0] + offset, c[1]]);
-      features.push({...f, geometry: {type:'LineString', coordinates: adjusted}});
-    });
-    return {...geojson, features};
-  }
-
-  const geoJsonData = fixAntimeridian(rawLayer.toGeoJSON());
-  kmlLayer = L.geoJson(geoJsonData, {
+  kmlLayer = L.geoJson(rawLayer.toGeoJSON(), {
     style: function(feature) {
       const name = (feature.properties && feature.properties.name) || '';
       const styleId = placemarkStyles[name] || 'lineStyle';
