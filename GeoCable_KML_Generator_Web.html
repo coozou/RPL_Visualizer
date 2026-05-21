@@ -1028,7 +1028,7 @@ function showMap() {
   mapArea.scrollIntoView({behavior: 'smooth'});
 
   if (!map) {
-    map = L.map('map').setView([20, 120], 3);
+    map = L.map('map', {worldCopyJump: true}).setView([20, 120], 3);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 18
@@ -1079,31 +1079,30 @@ function showMap() {
 
   const rawLayer = omnivore.kml.parse(window._lastKmlContent);
 
-  // 日付変更線をまたぐラインを分割
-  function splitAntimeridian(geojson) {
+  // 日付変更線をまたぐラインを経度連続値に変換（分断しない）
+  function fixAntimeridian(geojson) {
     const features = [];
     geojson.features.forEach(f => {
       if (f.geometry.type !== 'LineString') {
         features.push(f); return;
       }
       const coords = f.geometry.coordinates;
-      const segments = [[]];
-      for (let i = 0; i < coords.length; i++) {
-        segments[segments.length-1].push(coords[i]);
-        if (i < coords.length-1) {
-          const diff = Math.abs(coords[i+1][0] - coords[i][0]);
-          if (diff > 180) segments.push([]);
-        }
+      const fixed = [coords[0].slice()];
+      for (let i = 1; i < coords.length; i++) {
+        const prev = fixed[fixed.length-1];
+        let lon = coords[i][0];
+        const lat = coords[i][1];
+        // 前の点との経度差が180超なら連続値に補正
+        while (lon - prev[0] > 180) lon -= 360;
+        while (prev[0] - lon > 180) lon += 360;
+        fixed.push([lon, lat]);
       }
-      segments.forEach(seg => {
-        if (seg.length >= 2)
-          features.push({...f, geometry: {type:'LineString', coordinates: seg}});
-      });
+      features.push({...f, geometry: {type:'LineString', coordinates: fixed}});
     });
     return {...geojson, features};
   }
 
-  const geoJsonData = splitAntimeridian(rawLayer.toGeoJSON());
+  const geoJsonData = fixAntimeridian(rawLayer.toGeoJSON());
   kmlLayer = L.geoJson(geoJsonData, {
     style: function(feature) {
       const name = (feature.properties && feature.properties.name) || '';
