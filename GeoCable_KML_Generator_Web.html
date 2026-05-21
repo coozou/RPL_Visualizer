@@ -1028,10 +1028,11 @@ function showMap() {
   mapArea.scrollIntoView({behavior: 'smooth'});
 
   if (!map) {
-    map = L.map('map', {worldCopyJump: true}).setView([20, 120], 3);
+    map = L.map('map', {worldCopyJump: false, maxBoundsViscosity: 0}).setView([20, 120], 3);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
-      maxZoom: 18
+      maxZoom: 18,
+      noWrap: false
     }).addTo(map);
   }
 
