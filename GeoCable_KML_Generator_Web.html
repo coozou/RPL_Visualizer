@@ -1142,28 +1142,14 @@ function showMap() {
         return [lat, lon];
       }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
       if (latlngs.length >= 2) {
-        // 日付変更線をまたぐ場合、両側に複製して描画
-        const segments = [[]];
-        for (let i = 0; i < latlngs.length; i++) {
-          segments[segments.length-1].push(latlngs[i]);
-          if (i < latlngs.length-1) {
-            const diff = latlngs[i+1][1] - latlngs[i][1];
-            if (Math.abs(diff) > 180) segments.push([]);
-          }
-        }
-        const allSegs = [...segments];
-        allSegs.forEach(seg => {
-          if (seg.length >= 2) {
-            const LineCls = (typeof L.Polyline.AntimeridianWrap !== "undefined") ? L.Polyline.AntimeridianWrap : L.polyline;
-        const line = LineCls(seg, {
-              color: s.lineColor || '#ffffff',
-              weight: s.lineWidth || 1,
-              opacity: 1
-            });
-            line.bindPopup(popup, {maxWidth: 300});
-            kmlLayer.addLayer(line);
-          }
+        // fix_antimeridianで連続値化された座標をそのまま1本のラインで描画
+        const line = new L.PolylineNoWrap(latlngs, {
+          color: s.lineColor || '#ffffff',
+          weight: s.lineWidth || 1,
+          opacity: 1
         });
+        line.bindPopup(popup, {maxWidth: 300});
+        kmlLayer.addLayer(line);
         latlngs.forEach(c => bounds.push(c));
       }
     }
