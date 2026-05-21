@@ -1099,45 +1099,62 @@ function showMap() {
     placemarkStyles[name] = styleUrl;
   });
 
-  const rawLayer = omnivore.kml.parse(window._lastKmlContent);
+  // KMLを直接パースしてL.polyline/circleMarkerで描画（180°超の経度も対応）
+  if (kmlLayer) { map.removeLayer(kmlLayer); kmlLayer = null; }
+  kmlLayer = L.layerGroup();
+  const bounds = [];
 
-  kmlLayer = L.geoJson(rawLayer.toGeoJSON(), {
-    style: function(feature) {
-      const name = (feature.properties && feature.properties.name) || '';
-      const styleId = placemarkStyles[name] || 'lineStyle';
-      const s = styles[styleId] || {};
-      return {
-        color: s.lineColor || '#ffffff',
-        weight: s.lineWidth || 1,
-        opacity: 1
-      };
-    },
-    pointToLayer: function(feature, latlng) {
-      const name = (feature.properties && feature.properties.name) || '';
-      const styleId = placemarkStyles[name] || 'repeaterStyle';
-      const s = styles[styleId] || {};
-      const color = s.iconColor || '#ffff00';
-      return L.circleMarker(latlng, {
-        radius: 1,
-        fillColor: color,
-        color: color,
-        weight: 1,
-        opacity: 1,
-        fillOpacity: 1
-      });
-    },
-    onEachFeature: function(feature, layer) {
-      if (feature.properties) {
-        const p = feature.properties;
-        const desc = (p.description || '').replace(/<br\/>/g, '<br/>');
-        layer.bindPopup(`<b>${p.name || ''}</b><br/>${desc}`, {maxWidth: 300});
+  kmlDoc.querySelectorAll('Placemark').forEach(pm => {
+    const name = pm.querySelector('name')?.textContent || '';
+    const desc = pm.querySelector('description')?.textContent || '';
+    const styleUrl = pm.querySelector('styleUrl')?.textContent?.replace('#','') || '';
+    const s = styles[styleUrl] || {};
+    const popup = `<b>${name}</b><br/>${desc}`;
+
+    const lineEl = pm.querySelector('LineString coordinates');
+    if (lineEl) {
+      const raw = lineEl.textContent.trim().split(/\s+/);
+      const latlngs = raw.map(c => {
+        const [lon, lat] = c.split(',').map(Number);
+        return [lat, lon];
+      }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+      if (latlngs.length >= 2) {
+        const line = L.polyline(latlngs, {
+          color: s.lineColor || '#ffffff',
+          weight: s.lineWidth || 1,
+          opacity: 1
+        });
+        line.bindPopup(popup, {maxWidth: 300});
+        kmlLayer.addLayer(line);
+        latlngs.forEach(c => bounds.push(c));
+      }
+    }
+
+    const pointEl = pm.querySelector('Point coordinates');
+    if (pointEl) {
+      const parts = pointEl.textContent.trim().split(',');
+      const lon = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const color = s.iconColor || '#ffff00';
+        const circle = L.circleMarker([lat, lon], {
+          radius: 1,
+          fillColor: color,
+          color: color,
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 1
+        });
+        circle.bindPopup(popup, {maxWidth: 300});
+        kmlLayer.addLayer(circle);
+        bounds.push([lat, lon]);
       }
     }
   });
 
   kmlLayer.addTo(map);
-  if (kmlLayer.getLayers().length > 0) {
-    map.fitBounds(kmlLayer.getBounds());
+  if (bounds.length > 0) {
+    map.fitBounds(bounds);
   }
 
   setTimeout(() => map.invalidateSize(), 100);
