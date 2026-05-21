@@ -1087,17 +1087,26 @@ function showMap() {
         features.push(f); return;
       }
       const coords = f.geometry.coordinates;
+      // まず前の点との差分で連続化
       const fixed = [coords[0].slice()];
       for (let i = 1; i < coords.length; i++) {
         const prev = fixed[fixed.length-1];
         let lon = coords[i][0];
         const lat = coords[i][1];
-        // 前の点との経度差が180超なら連続値に補正
         while (lon - prev[0] > 180) lon -= 360;
         while (prev[0] - lon > 180) lon += 360;
         fixed.push([lon, lat]);
       }
-      features.push({...f, geometry: {type:'LineString', coordinates: fixed}});
+      // 全体の経度範囲を-180〜360に収める（中心が0〜180になるよう調整）
+      const lons = fixed.map(c => c[0]);
+      const minLon = Math.min(...lons);
+      const maxLon = Math.max(...lons);
+      const centerLon = (minLon + maxLon) / 2;
+      let offset = 0;
+      if (centerLon > 180) offset = -360;
+      else if (centerLon < -180) offset = 360;
+      const adjusted = fixed.map(c => [c[0] + offset, c[1]]);
+      features.push({...f, geometry: {type:'LineString', coordinates: adjusted}});
     });
     return {...geojson, features};
   }
