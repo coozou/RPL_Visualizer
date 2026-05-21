@@ -930,22 +930,9 @@ styles=f'''  <Style id="lineStyle"><LineStyle><color>{lc}</color><width>{lw}</wi
 names=list(selected_names)
 fm=str(folder_mode)
 
-def fix_antimeridian(coords):
-    # 前の点との経度差が180超の場合、連続値に補正
-    if not coords: return coords
-    fixed = [coords[0]]
-    for i in range(1, len(coords)):
-        prev_lon = fixed[-1][0]
-        lon, lat = coords[i]
-        while lon - prev_lon > 180: lon -= 360
-        while prev_lon - lon > 180: lon += 360
-        fixed.append((lon, lat))
-    return fixed
-
 def make_line_pm(sys_name, d, style_id, suffix=''):
     pms=''
     for coords in d['geom_list']:
-        coords=fix_antimeridian(coords)
         cs=' '.join(f'{lon},{lat},0' for lon,lat in coords)
         pms+=f'''    <Placemark>
       <name>{xml_escape(sys_name)}{suffix}</name>
@@ -1128,13 +1115,35 @@ function showMap() {
         return [lat, lon];
       }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
       if (latlngs.length >= 2) {
-        const line = L.polyline(latlngs, {
-          color: s.lineColor || '#ffffff',
-          weight: s.lineWidth || 1,
-          opacity: 1
+        // 日付変更線をまたぐ場合、両側に複製して描画
+        const segments = [[]];
+        for (let i = 0; i < latlngs.length; i++) {
+          segments[segments.length-1].push(latlngs[i]);
+          if (i < latlngs.length-1) {
+            const diff = latlngs[i+1][1] - latlngs[i][1];
+            if (Math.abs(diff) > 180) segments.push([]);
+          }
+        }
+        // 各セグメントを正側・負側の両方に描画（太平洋をまたぐラインを両側に表示）
+        const allSegs = [...segments];
+        if (segments.length > 1) {
+          // 正側コピー（+360）と負側コピー（-360）も追加
+          segments.forEach(seg => {
+            allSegs.push(seg.map(c => [c[0], c[1]+360]));
+            allSegs.push(seg.map(c => [c[0], c[1]-360]));
+          });
+        }
+        allSegs.forEach(seg => {
+          if (seg.length >= 2) {
+            const line = L.polyline(seg, {
+              color: s.lineColor || '#ffffff',
+              weight: s.lineWidth || 1,
+              opacity: 1
+            });
+            line.bindPopup(popup, {maxWidth: 300});
+            kmlLayer.addLayer(line);
+          }
         });
-        line.bindPopup(popup, {maxWidth: 300});
-        kmlLayer.addLayer(line);
         latlngs.forEach(c => bounds.push(c));
       }
     }
