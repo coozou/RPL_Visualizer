@@ -498,7 +498,7 @@
     <div class="action-row">
       <button class="btn btn-primary" id="btn-gen" onclick="generateKML()" disabled>KML生成</button>
       <button class="btn" id="btn-gen-map" onclick="generateKMLandMap()" disabled style="background:#1a6b8a;color:white;">KML生成＋MAP</button>
-      <button class="btn" id="btn-show-map" onclick="showMap()" disabled style="background:#1a6b8a;color:white;">MAPのみ</button>
+      <button class="btn" id="btn-show-map" onclick="generateMapOnly()" disabled style="background:#1a6b8a;color:white;">MAPのみ</button>
     </div>
 
   </div>
@@ -735,7 +735,7 @@ function rgbToKml(hex) {
 }
 
 // ===== KML生成 =====
-async function generateKML() {
+async function generateKML(doDownload=true) {
   if (selectedNames.size === 0) {
     alert('System Nameを選択してください');
     return;
@@ -1019,13 +1019,15 @@ result
   log(`KML生成完了 (${selected.length}件)`);
 
   // ダウンロード＆地図表示用に保持
-  const blob = new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = outName + '.kml';
-  a.click();
-  log(`ダウンロード: ${outName}.kml`);
+  if (doDownload) {
+    const blob = new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = outName + '.kml';
+    a.click();
+    log(`ダウンロード: ${outName}.kml`);
+  }
 
   // 地図表示ボタンを追加
   window._lastKmlContent = kmlContent;
@@ -1036,7 +1038,13 @@ result
 
 // ===== KML生成＋MAP =====
 async function generateKMLandMap() {
-  await generateKML();
+  await generateKML(true);
+  if (window._lastKmlContent) showMap();
+}
+
+// ===== MAPのみ =====
+async function generateMapOnly() {
+  await generateKML(false);  // ダウンロードしない
   if (window._lastKmlContent) showMap();
 }
 
