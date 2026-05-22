@@ -1119,15 +1119,24 @@ function showMap() {
         return [lat, lon];
       }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
       if (latlngs.length >= 2) {
-        // fix_antimeridianで連続値化された座標をそのまま1本のラインで描画
-        const line = L.polyline(latlngs, {
-          color: s.lineColor || '#ffffff',
-          weight: s.lineWidth || 1,
-          opacity: 1
-        });
-        line.bindPopup(popup, {maxWidth: 300});
-        kmlLayer.addLayer(line);
-        latlngs.forEach(c => bounds.push(c));
+        // 日付変更線をまたぐか確認（経度差>180の点があれば除外）
+        let crossesAntimeridian = false;
+        for (let i = 1; i < latlngs.length; i++) {
+          if (Math.abs(latlngs[i][1] - latlngs[i-1][1]) > 180) {
+            crossesAntimeridian = true;
+            break;
+          }
+        }
+        if (!crossesAntimeridian) {
+          const line = L.polyline(latlngs, {
+            color: s.lineColor || '#ffffff',
+            weight: s.lineWidth || 1,
+            opacity: 1
+          });
+          line.bindPopup(popup, {maxWidth: 300});
+          kmlLayer.addLayer(line);
+          latlngs.forEach(c => bounds.push(c));
+        }
       }
     }
 
