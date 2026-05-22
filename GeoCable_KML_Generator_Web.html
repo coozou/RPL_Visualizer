@@ -1129,7 +1129,7 @@ function showMap() {
     }
 
     const pointEl = pm.querySelector('Point coordinates');
-    if (pointEl) {
+    if (pointEl && (s.iconScale === undefined || s.iconScale > 0)) {
       const parts = pointEl.textContent.trim().split(',');
       const lon = parseFloat(parts[0]);
       const lat = parseFloat(parts[1]);
