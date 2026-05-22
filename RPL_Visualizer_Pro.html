@@ -510,6 +510,22 @@
         </div>
         <input type="file" id="kml-map-input" accept=".kml" multiple style="display:none">
         <div class="file-list" id="kml-map-file-list"></div>
+        <div class="form-row" style="margin-top:8px;flex-wrap:wrap;gap:12px;">
+          <span class="form-label" style="min-width:auto;">ライン太さ</span>
+          <select class="form-select" id="kml-line-w" style="width:70px;" onchange="updateKMLStyles()">
+            <option>0.5</option><option>1.0</option><option>1.5</option><option>2.0</option><option>3.0</option>
+          </select>
+          <span class="form-label" style="min-width:auto;">スタイル</span>
+          <select class="form-select" id="kml-line-style" style="width:80px;" onchange="updateKMLStyles()">
+            <option value="">実線</option>
+            <option value="6,3">破線</option>
+            <option value="2,4">点線</option>
+          </select>
+          <span class="form-label" style="min-width:auto;">ポイント半径</span>
+          <select class="form-select" id="kml-point-r" style="width:70px;" onchange="updateKMLStyles()">
+            <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+          </select>
+        </div>
         <div class="btn-row" style="margin-top:8px;">
           <button class="btn btn-amber" onclick="drawKMLonMap()">📍 KML描画</button>
           <button class="btn btn-ghost" onclick="clearKMLLayers()">KMLクリア</button>
@@ -624,6 +640,8 @@ let pyReady = false;
 const kmlFiles = [];
 const kmlMapFiles = [];
 let kmlMapLayers = [];
+let kmlPolylines = [];   // ポリラインのみ（スタイル更新用）
+let kmlMarkers = [];     // マーカーのみ（スタイル更新用）
 const extFiles = [];
 const mapFiles = [];
 const graphFiles = [];
@@ -1224,10 +1242,15 @@ async function drawKMLonMap() {
     const color = kmlColors[ci % kmlColors.length]; ci++;
     const fname = file.name.replace('.kml','');
 
+    // UI設定値取得
+    const lw  = parseFloat(document.getElementById('kml-line-w')?.value || '0.5');
+    const lst = document.getElementById('kml-line-style')?.value || '';
+    const pr  = parseInt(document.getElementById('kml-point-r')?.value || '0');
+
     // LineString → ポリライン
     const lineStrings = kmlDoc.querySelectorAll('LineString');
-    lineStrings.forEach(ls => {
-      const coordText = ls.querySelector('coordinates')?.textContent?.trim();
+    lineStrings.forEach(ls_el => {
+      const coordText = ls_el.querySelector('coordinates')?.textContent?.trim();
       if(!coordText) return;
       const latlngs = coordText.split(/\s+/).map(c => {
         const parts = c.split(',');
@@ -1236,11 +1259,14 @@ async function drawKMLonMap() {
         return isNaN(lat)||isNaN(lon) ? null : [lat, lon];
       }).filter(Boolean);
       if(!latlngs.length) return;
-      const poly = L.polyline(latlngs, {color, weight:1.5, opacity:0.9, dashArray:'6,3'});
+      const polyOpts = {color, weight:lw, opacity:0.9};
+      if(lst) polyOpts.dashArray = lst;
+      const poly = L.polyline(latlngs, polyOpts);
       poly.bindPopup(`<b style="color:${color}">📍 ${fname}</b>`, {closeButton:false});
       poly.on('click', function(e){ this.openPopup(e.latlng); });
       poly.addTo(mapInstance);
       kmlMapLayers.push(poly);
+      kmlPolylines.push(poly);
       latlngs.forEach(p => bounds.push(p));
     });
 
@@ -1256,13 +1282,15 @@ async function drawKMLonMap() {
       const lon = parseFloat(parts[0]), lat = parseFloat(parts[1]);
       if(isNaN(lat)||isNaN(lon)) return;
       const name = pm.querySelector('name')?.textContent?.trim() || '';
+      bounds.push([lat, lon]);
+      if(pr === 0) return;  // radius=0は非表示
       const marker = L.circleMarker([lat,lon], {
-        radius:3, color, fillColor:color, fillOpacity:0.9, weight:1
+        radius:pr, color, fillColor:color, fillOpacity:0.9, weight:0.5
       });
       if(name) marker.bindPopup(`<b style="color:${color}">${name}</b>`, {closeButton:false});
       marker.addTo(mapInstance);
       kmlMapLayers.push(marker);
-      bounds.push([lat,lon]);
+      kmlMarkers.push(marker);
     });
 
     appendLog('map-log', `✔ KML描画: ${fname} (ライン${lineStrings.length}本)`, 'log-success');
@@ -1272,7 +1300,21 @@ async function drawKMLonMap() {
 
 function clearKMLLayers() {
   kmlMapLayers.forEach(l => { try{ mapInstance.removeLayer(l); }catch(e){} });
-  kmlMapLayers = [];
+  kmlMapLayers = []; kmlPolylines = []; kmlMarkers = [];
+}
+
+// スタイル変更時に描画済みレイヤーをリアルタイム更新
+function updateKMLStyles() {
+  const lw = parseFloat(document.getElementById('kml-line-w')?.value||'0.5');
+  const ls = document.getElementById('kml-line-style')?.value||'';
+  const pr = parseInt(document.getElementById('kml-point-r')?.value||'0');
+  kmlPolylines.forEach(poly => {
+    poly.setStyle({weight: lw, dashArray: ls||null});
+  });
+  kmlMarkers.forEach(m => {
+    m.setStyle({radius: pr});
+    m.setRadius(pr);
+  });
 }
 
 async function drawRouteMap() {
