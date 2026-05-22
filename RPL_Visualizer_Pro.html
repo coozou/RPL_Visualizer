@@ -502,6 +502,19 @@
           <button class="btn btn-ghost" onclick="clearMap()">クリア</button>
         </div>
       </div>
+      <div class="card" style="margin-bottom:10px;">
+        <div class="card-title">KMLファイル（オプション）</div>
+        <div class="drop-zone" id="kml-map-drop" onclick="document.getElementById('kml-map-input').click()">
+          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-text">.kmlファイルをドロップ、または<span>クリックして選択</span></div>
+        </div>
+        <input type="file" id="kml-map-input" accept=".kml" multiple style="display:none">
+        <div class="file-list" id="kml-map-file-list"></div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-amber" onclick="drawKMLonMap()">📍 KML描画</button>
+          <button class="btn btn-ghost" onclick="clearKMLLayers()">KMLクリア</button>
+        </div>
+      </div>
       <div id="map-container"></div>
       <div class="output-log" id="map-log" style="margin-top:10px;min-height:40px;">待機中...</div>
     </div>
@@ -609,6 +622,8 @@
 let pyodide = null;
 let pyReady = false;
 const kmlFiles = [];
+const kmlMapFiles = [];
+let kmlMapLayers = [];
 const extFiles = [];
 const mapFiles = [];
 const graphFiles = [];
@@ -1194,6 +1209,72 @@ function switchTileLayer() {
   mapInstance.setMaxZoom(cfg.maxZoom);
 }
 
+// KMLファイルをLeafletで描画
+async function drawKMLonMap() {
+  if(!kmlMapFiles.length) { appendLog('map-log','KMLファイルを選択してください','log-warn'); return; }
+  if(!mapInstance) initMap();
+  clearKMLLayers();
+  const kmlColors = ['#ffaa00','#ff6600','#ffdd00','#ff44aa','#44ffaa','#aaaaff'];
+  let ci = 0;
+  const bounds = [];
+  for(const file of kmlMapFiles) {
+    const text = await file.text();
+    const parser = new DOMParser();
+    const kmlDoc = parser.parseFromString(text, 'text/xml');
+    const color = kmlColors[ci % kmlColors.length]; ci++;
+    const fname = file.name.replace('.kml','');
+
+    // LineString → ポリライン
+    const lineStrings = kmlDoc.querySelectorAll('LineString');
+    lineStrings.forEach(ls => {
+      const coordText = ls.querySelector('coordinates')?.textContent?.trim();
+      if(!coordText) return;
+      const latlngs = coordText.split(/\s+/).map(c => {
+        const parts = c.split(',');
+        if(parts.length < 2) return null;
+        const lon = parseFloat(parts[0]), lat = parseFloat(parts[1]);
+        return isNaN(lat)||isNaN(lon) ? null : [lat, lon];
+      }).filter(Boolean);
+      if(!latlngs.length) return;
+      const poly = L.polyline(latlngs, {color, weight:1.5, opacity:0.9, dashArray:'6,3'});
+      poly.bindPopup(`<b style="color:${color}">📍 ${fname}</b>`, {closeButton:false});
+      poly.on('click', function(e){ this.openPopup(e.latlng); });
+      poly.addTo(mapInstance);
+      kmlMapLayers.push(poly);
+      latlngs.forEach(p => bounds.push(p));
+    });
+
+    // Point → マーカー
+    const placemarks = kmlDoc.querySelectorAll('Placemark');
+    placemarks.forEach(pm => {
+      const point = pm.querySelector('Point');
+      if(!point) return;
+      const coordText = point.querySelector('coordinates')?.textContent?.trim();
+      if(!coordText) return;
+      const parts = coordText.split(',');
+      if(parts.length < 2) return;
+      const lon = parseFloat(parts[0]), lat = parseFloat(parts[1]);
+      if(isNaN(lat)||isNaN(lon)) return;
+      const name = pm.querySelector('name')?.textContent?.trim() || '';
+      const marker = L.circleMarker([lat,lon], {
+        radius:3, color, fillColor:color, fillOpacity:0.9, weight:1
+      });
+      if(name) marker.bindPopup(`<b style="color:${color}">${name}</b>`, {closeButton:false});
+      marker.addTo(mapInstance);
+      kmlMapLayers.push(marker);
+      bounds.push([lat,lon]);
+    });
+
+    appendLog('map-log', `✔ KML描画: ${fname} (ライン${lineStrings.length}本)`, 'log-success');
+  }
+  if(bounds.length) mapInstance.fitBounds(bounds, {padding:[20,20]});
+}
+
+function clearKMLLayers() {
+  kmlMapLayers.forEach(l => { try{ mapInstance.removeLayer(l); }catch(e){} });
+  kmlMapLayers = [];
+}
+
 async function drawRouteMap() {
   if(!mapFiles.length) return;
   if(!mapInstance) initMap();
@@ -1611,6 +1692,7 @@ function saveScatter() {
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
   setupDropZone('kml-drop','kml-file-input',kmlFiles,'kml-file-list',['kml-run-btn']);
+  setupDropZone('kml-map-drop','kml-map-input',kmlMapFiles,'kml-map-file-list',[]);
   setupDropZone('ext-drop','ext-file-input',extFiles,'ext-file-list',['ext-cable-btn','ext-depth-btn','ext-burial-btn']);
   setupDropZone('map-drop','map-file-input',mapFiles,'map-file-list',['map-run-btn']);
   setupDropZone('graph-drop','graph-file-input',graphFiles,'graph-file-list',['graph-run-btn']);
