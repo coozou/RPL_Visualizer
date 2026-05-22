@@ -682,22 +682,22 @@ function switchPanel(id, navEl) {
 // =============================================
 //  File handling helpers
 // =============================================
-function setupDropZone(dropId, inputId, fileArr, listId, btnIds) {
+function setupDropZone(dropId, inputId, fileArr, listId, btnIds, ext='.xlsx') {
   const drop = document.getElementById(dropId);
   const input = document.getElementById(inputId);
   drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
   drop.addEventListener('drop', e => {
     e.preventDefault(); drop.classList.remove('dragover');
-    handleFiles(Array.from(e.dataTransfer.files), fileArr, listId, btnIds);
+    handleFiles(Array.from(e.dataTransfer.files), fileArr, listId, btnIds, ext);
   });
   input.addEventListener('change', () => {
-    handleFiles(Array.from(input.files), fileArr, listId, btnIds);
+    handleFiles(Array.from(input.files), fileArr, listId, btnIds, ext);
     input.value = '';
   });
 }
-function handleFiles(files, fileArr, listId, btnIds) {
-  files.filter(f => f.name.endsWith('.xlsx')).forEach(f => {
+function handleFiles(files, fileArr, listId, btnIds, ext='.xlsx') {
+  files.filter(f => f.name.endsWith(ext)).forEach(f => {
     if(!fileArr.find(x => x.name === f.name)) fileArr.push(f);
   });
   renderFileList(fileArr, listId, btnIds);
@@ -1692,7 +1692,7 @@ function saveScatter() {
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
   setupDropZone('kml-drop','kml-file-input',kmlFiles,'kml-file-list',['kml-run-btn']);
-  setupDropZone('kml-map-drop','kml-map-input',kmlMapFiles,'kml-map-file-list',[]);
+  setupDropZone('kml-map-drop','kml-map-input',kmlMapFiles,'kml-map-file-list',[], '.kml');
   setupDropZone('ext-drop','ext-file-input',extFiles,'ext-file-list',['ext-cable-btn','ext-depth-btn','ext-burial-btn']);
   setupDropZone('map-drop','map-file-input',mapFiles,'map-file-list',['map-run-btn']);
   setupDropZone('graph-drop','graph-file-input',graphFiles,'graph-file-list',['graph-run-btn']);
