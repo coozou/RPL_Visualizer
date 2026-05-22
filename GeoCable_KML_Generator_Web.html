@@ -722,6 +722,9 @@ async function loadXML() {
   log('読み込み完了');
   hideProgress('load');
   renderList();
+  // 読み込み完了後にALL選択
+  allNames.forEach(n => selectedNames.add(n));
+  renderList();
   updateSelCount();
   document.getElementById('btn-gen').disabled = false;
   document.getElementById('btn-gen-map').disabled = false;
