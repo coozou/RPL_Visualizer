@@ -1231,7 +1231,7 @@ function switchTileLayer() {
 async function drawKMLonMap() {
   if(!kmlMapFiles.length) { appendLog('map-log','KMLファイルを選択してください','log-warn'); return; }
   if(!mapInstance) initMap();
-  clearKMLLayers();
+  clearKMLLayersOnly();
   const kmlColors = ['#ffaa00','#ff6600','#ffdd00','#ff44aa','#44ffaa','#aaaaff'];
   let ci = 0;
   const bounds = [];
@@ -1298,12 +1298,17 @@ async function drawKMLonMap() {
   if(bounds.length) mapInstance.fitBounds(bounds, {padding:[20,20]});
 }
 
-function clearKMLLayers() {
+// レイヤーのみ削除（描画前の再描画時に使用）
+function clearKMLLayersOnly() {
   if(mapInstance) {
-    kmlMapLayers.forEach(l => { try{ mapInstance.removeLayer(l); }catch(e){ console.warn('removeLayer error:',e); } });
+    kmlMapLayers.forEach(l => { try{ mapInstance.removeLayer(l); }catch(e){} });
   }
   kmlMapLayers = []; kmlPolylines = []; kmlMarkers = [];
-  // ファイルリストとファイル配列もクリア
+}
+
+// ボタン押下時: レイヤー＋ファイルリスト両方クリア
+function clearKMLLayers() {
+  clearKMLLayersOnly();
   kmlMapFiles.length = 0;
   const list = document.getElementById('kml-map-file-list');
   if(list) list.innerHTML = '';
