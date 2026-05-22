@@ -1312,7 +1312,8 @@ function clearKMLLayers() {
   kmlMapFiles.length = 0;
   const list = document.getElementById('kml-map-file-list');
   if(list) list.innerHTML = '';
-  appendLog('map-log', 'KMLレイヤーをクリアしました', 'log-info');
+  const log = document.getElementById('map-log');
+  if(log) log.textContent = 'KMLクリア完了';
 }
 
 // スタイル変更時に描画済みレイヤーをリアルタイム更新
