@@ -1299,8 +1299,15 @@ async function drawKMLonMap() {
 }
 
 function clearKMLLayers() {
-  kmlMapLayers.forEach(l => { try{ mapInstance.removeLayer(l); }catch(e){} });
+  if(mapInstance) {
+    kmlMapLayers.forEach(l => { try{ mapInstance.removeLayer(l); }catch(e){ console.warn('removeLayer error:',e); } });
+  }
   kmlMapLayers = []; kmlPolylines = []; kmlMarkers = [];
+  // ファイルリストとファイル配列もクリア
+  kmlMapFiles.length = 0;
+  const list = document.getElementById('kml-map-file-list');
+  if(list) list.innerHTML = '';
+  appendLog('map-log', 'KMLレイヤーをクリアしました', 'log-info');
 }
 
 // スタイル変更時に描画済みレイヤーをリアルタイム更新
