@@ -956,30 +956,50 @@ def make_point_pm(pts, style_id):
     </Placemark>\\n'''
     return pms
 
+def is_oos(name):
+    nl=name.lower()
+    return '(oos)' in nl or '(abnd)' in nl
+
 if fm=='lp':
-    lf='  <Folder>\\n    <name>Cable</name>\\n'
-    rf='  <Folder>\\n    <name>Repeater</name>\\n'
-    ef='  <Folder>\\n    <name>Equaliser</name>\\n'
+    lf='    <Folder>\\n      <name>Cable</name>\\n'
+    rf='    <Folder>\\n      <name>Repeater</name>\\n'
+    ef='    <Folder>\\n      <name>Equaliser</name>\\n'
+    of='    <Folder>\\n      <name>Cable(OOS)</name>\\n'
+    rof='    <Folder>\\n      <name>Repeater(OOS)</name>\\n'
+    eof='    <Folder>\\n      <name>Equaliser(OOS)</name>\\n'
     for sn in names:
-        has_l=sn in line_data or sn in line_oss_data
-        if has_l:
-            lf+=f'    <Folder>\\n      <name>{xml_escape(sn)}</name>\\n'
-            if sn in line_data: lf+=make_line_pm(sn,line_data[sn],'lineStyle')
-            if sn in line_oss_data: lf+=make_line_pm(sn,line_oss_data[sn],'lineOssStyle',' (OSS)')
-            lf+='    </Folder>\\n'
+        oos=is_oos(sn)
+        for src,sid in [(line_data,'lineStyle'),(line_oss_data,'lineOssStyle')]:
+            if sn not in src: continue
+            t=of if oos else lf
+            t+=f'      <Folder>\\n        <name>{xml_escape(sn)}</name>\\n'
+            t+=make_line_pm(sn,src[sn],sid)
+            t+='      </Folder>\\n'
+            if oos: of=t
+            else: lf=t
         if sn in point_data:
             for ft,pts in point_data[sn].items():
                 sid='equaliserStyle' if 'equaliser' in ft.lower() else 'repeaterStyle'
-                if 'equaliser' in ft.lower():
-                    ef+=f'    <Folder>\\n      <name>{xml_escape(sn)}</name>\\n'
-                    ef+=make_point_pm(pts,sid)
-                    ef+='    </Folder>\\n'
+                is_eq='equaliser' in ft.lower()
+                if is_eq:
+                    t=eof if oos else ef
+                    t+=f'      <Folder>\\n        <name>{xml_escape(sn)}</name>\\n'
+                    t+=make_point_pm(pts,sid)
+                    t+='      </Folder>\\n'
+                    if oos: eof=t
+                    else: ef=t
                 else:
-                    rf+=f'    <Folder>\\n      <name>{xml_escape(sn)}</name>\\n'
-                    rf+=make_point_pm(pts,sid)
-                    rf+='    </Folder>\\n'
-    lf+='  </Folder>\\n'; rf+='  </Folder>\\n'; ef+='  </Folder>\\n'
-    folder_xml=lf+rf+ef
+                    t=rof if oos else rf
+                    t+=f'      <Folder>\\n        <name>{xml_escape(sn)}</name>\\n'
+                    t+=make_point_pm(pts,sid)
+                    t+='      </Folder>\\n'
+                    if oos: rof=t
+                    else: rf=t
+    lf+='    </Folder>\\n'; rf+='    </Folder>\\n'; ef+='    </Folder>\\n'
+    of+='    </Folder>\\n'; rof+='    </Folder>\\n'; eof+='    </Folder>\\n'
+    inuse='  <Folder>\\n    <name>IN-USE</name>\\n'+lf+rf+ef+'  </Folder>\\n'
+    oss='  <Folder>\\n    <name>OSS</name>\\n'+of+rof+eof+'  </Folder>\\n'
+    folder_xml=inuse+oss
 else:
     folder_xml=''
     for sn in names:
