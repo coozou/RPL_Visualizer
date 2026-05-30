@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeoCable KML Generator Web (No Pyodide)</title>
+<style>
+  :root {
+    --bg: #D7E7EE;
+    --panel: #ffffff;
+    --accent: #002368;
+    --accent2: #105510;
+    --danger: #8E001B;
+    --border: #b0c8d4;
+    --text: #1a1a2e;
+    --subtext: #4a6a7a;
+    --log-bg: #0d1117;
+    --log-text: #e6edf3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'BIZ UDGothic', 'Meiryo', 'Yu Gothic', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    background: var(--bg);
+    padding: 8px 20px 4px;
+    border-bottom: 2px solid var(--border);
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  h1 {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .guidance {
+    font-size: 0.78rem;
+    color: var(--danger);
+    margin-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  /* ===== MAIN LAYOUT ===== */
+  .main {
+    display: flex;
+    flex: 1;
+    gap: 0;
+    overflow: hidden;
+  }
+  .left-pane {
+    width: 520px;
+    min-width: 480px;
+    padding: 12px 16px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+  }
+  .right-pane {
+    flex: 1;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  /* ===== SECTION HEADERS ===== */
+  .section-header {
+    font-size: 0.82rem;
+    font-weight: bold;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 3px;
+    margin: 10px 0 8px;
+    letter-spacing: 0.05em;
+  }
+  .section-header:first-child { margin-top: 0; }
+
+  /* ===== FILE SELECT ===== */
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+  .file-label {
+    width: 100px;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  .file-display {
+    flex: 1;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 0.78rem;
+    color: var(--subtext);
+    min-height: 26px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .file-display.has-file { color: var(--text); }
+  .btn-browse {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .btn-browse:hover { opacity: 0.85; }
+  .btn-clear-file {
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  input[type=file] { display: none; }
+
+  /* ===== LOAD BUTTON ===== */
+  .load-area {
+    text-align: center;
+    margin: 10px 0 6px;
+  }
+  .load-note {
+    font-size: 0.75rem;
+    color: var(--danger);
+    margin-bottom: 4px;
+  }
+
+  /* ===== STYLE SETTINGS ===== */
+  .style-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  .style-table th {
+    text-align: center;
+    padding: 3px 6px;
+    color: var(--subtext);
+    font-weight: normal;
+    font-size: 0.76rem;
+  }
+  .style-table td {
+    padding: 3px 6px;
+    vertical-align: middle;
+  }
+  .color-btn {
+    width: 60px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    display: block;
+  }
+  .size-spin {
+    width: 60px;
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+  .icon-select {
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    background: white;
+  }
+
+  /* ===== OUTPUT SETTINGS ===== */
+  .output-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .output-label {
+    font-size: 0.82rem;
+    width: 100px;
+    flex-shrink: 0;
+  }
+  .output-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.88rem;
+  }
+  .output-note {
+    font-size: 0.72rem;
+    color: var(--subtext);
+    margin-bottom: 6px;
+  }
+
+  /* ===== FOLDER STRUCTURE ===== */
+  .radio-group {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin: 6px 0;
+    font-size: 0.82rem;
+  }
+  .radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    border: none;
+    border-radius: 4px;
+    padding: 8px 24px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-success { background: var(--accent2); color: white; }
+  .btn-danger  { background: var(--danger);  color: white; }
+  .btn-sm { padding: 4px 12px; font-size: 0.78rem; }
+
+  .action-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+
+  /* ===== RIGHT PANE ===== */
+  .right-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .search-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .search-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.85rem;
+  }
+  .sys-list {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    font-family: 'Courier New', monospace;
+    height: 45vh;
+  }
+  .sys-item {
+    padding: 3px 8px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sys-item:hover { background: #e8f4f8; }
+  .sys-item.selected { background: #c5dfe8; }
+  .sys-icons { width: 3.6em; flex-shrink: 0; font-size: 0.82rem; white-space: nowrap; font-family: monospace; }
+
+  .sel-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+  }
+  .sel-count { font-size: 0.78rem; color: var(--subtext); margin-left: auto; }
+  .legend { font-size: 0.72rem; color: var(--subtext); }
+
+  /* ===== LOG ===== */
+  .log-area {
+    background: var(--log-bg);
+    color: var(--log-text);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    overflow-y: auto;
+    height: 25vh;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* ===== LOADING OVERLAY ===== */
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: rgba(215,231,238,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    font-size: 1rem;
+    color: var(--accent);
+    gap: 12px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer {
+    text-align: right;
+    font-size: 0.7rem;
+    font-style: italic;
+    color: var(--subtext);
+    padding: 4px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ===== PROGRESS ===== */
+  .progress-wrap {
+    display: none;
+    margin: 4px 0;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s;
+  }
+  .progress-text { font-size: 0.72rem; color: var(--subtext); text-align: right; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div>読み込み中...</div>
+</div>
+
+<header>
+  <div class="header-top">
+    <h1>GeoCable KML Generator Web</h1>
+  </div>
+  <div class="guidance">
+    ① XMLファイル選択、読み込み　→　② 右画面でSystem Name選択　→　③ スタイル設定　→　④ KML生成
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ===== 左ペイン ===== -->
+  <div class="left-pane">
+
+    <div class="section-header">━ XMLファイル選択 ━</div>
+
+    <div class="file-row">
+      <span class="file-label">Cable</span>
+      <div class="file-display" id="disp-fibre">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-fibre').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('fibre')">✕</button>
+      <input type="file" id="inp-fibre" accept=".xml" multiple onchange="onFileSelect(this,'fibre')">
+    </div>
+    <div class="file-row">
+      <span class="file-label">Cable(OSS)</span>
+      <div class="file-display" id="disp-fibre-oss">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-fibre-oss').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('fibre-oss')">✕</button>
+      <input type="file" id="inp-fibre-oss" accept=".xml" multiple onchange="onFileSelect(this,'fibre-oss')">
+    </div>
+    <div class="file-row">
+      <span class="file-label">Repeater</span>
+      <div class="file-display" id="disp-rep">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-rep').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('rep')">✕</button>
+      <input type="file" id="inp-rep" accept=".xml" multiple onchange="onFileSelect(this,'rep')">
+    </div>
+    <div class="file-row">
+      <span class="file-label">Equaliser</span>
+      <div class="file-display" id="disp-eq">未選択</div>
+      <button class="btn-browse" onclick="document.getElementById('inp-eq').click()">参照</button>
+      <button class="btn-clear-file" onclick="clearFile('eq')">✕</button>
+      <input type="file" id="inp-eq" accept=".xml" multiple onchange="onFileSelect(this,'eq')">
+    </div>
+
+    <div class="load-area">
+      <div class="load-note">XMLファイル選択後に押下</div>
+      <button class="btn btn-success" id="btn-load" onclick="loadXML()">読み込み</button>
+    </div>
+    <div class="progress-wrap" id="prog-load">
+      <div class="progress-bar"><div class="progress-fill" id="prog-load-fill"></div></div>
+      <div class="progress-text" id="prog-load-text"></div>
+    </div>
+
+    <div class="section-header">━ スタイル設定 ━</div>
+    <table class="style-table">
+      <tr>
+        <th style="width:90px;text-align:left"></th>
+        <th>カラー</th>
+        <th>サイズ</th>
+        <th>アイコン</th>
+      </tr>
+      <tr>
+        <td>Cable</td>
+        <td><input type="color" class="color-btn" id="col-line" value="#ffffff"></td>
+        <td><input type="number" class="size-spin" id="size-line" value="1.0" min="0.1" max="10" step="0.1"></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Cable(OSS)</td>
+        <td><input type="color" class="color-btn" id="col-oss" value="#ffffff"></td>
+        <td><input type="number" class="size-spin" id="size-oss" value="0.3" min="0.1" max="10" step="0.1"></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Repeater</td>
+        <td><input type="color" class="color-btn" id="col-rep" value="#ffff00"></td>
+        <td><input type="number" class="size-spin" id="size-rep" value="0.5" min="0.0" max="3" step="0.1"></td>
+        <td>
+          <select class="icon-select" id="icon-rep">
+            <option value="placemark_circle">◎ 丸</option>
+            <option value="placemark_square">□ 四角</option>
+            <option value="triangle">△ 三角</option>
+            <option value="open-diamond">◇ ダイヤ</option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <td>Equaliser</td>
+        <td><input type="color" class="color-btn" id="col-eq" value="#00ffff"></td>
+        <td><input type="number" class="size-spin" id="size-eq" value="0.5" min="0.0" max="3" step="0.1"></td>
+        <td>
+          <select class="icon-select" id="icon-eq">
+            <option value="placemark_circle">◎ 丸</option>
+            <option value="placemark_square">□ 四角</option>
+            <option value="triangle">△ 三角</option>
+            <option value="open-diamond" selected>◇ ダイヤ</option>
+          </select>
+        </td>
+      </tr>
+    </table>
+
+    <div class="section-header">━ 出力設定 ━</div>
+    <div class="output-row">
+      <span class="output-label">KMLファイル名</span>
+      <input type="text" class="output-input" id="out-name" value="GeoCable_KML_Generator_Web" style="color:grey" onfocus="this.style.color='black';this.setSelectionRange(this.value.length,this.value.length);" onblur="if(!this.value.trim()){this.value='GeoCable_KML_Generator_Web';this.style.color='grey';}">
+    </div>
+    <div class="output-note">（拡張子不要）</div>
+
+    <div class="section-header">━ KMLファイルのフォルダ構造 ━</div>
+    <div class="radio-group">
+      <label><input type="radio" name="folder" value="lp" checked> Cable/Repeater/Equaliserで分類する</label>
+      <label><input type="radio" name="folder" value="sys"> Systemですべてまとめる</label>
+    </div>
+
+    <div class="progress-wrap" id="prog-gen">
+      <div class="progress-bar"><div class="progress-fill" id="prog-gen-fill"></div></div>
+      <div class="progress-text" id="prog-gen-text"></div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-primary" id="btn-gen" onclick="generateKML()" disabled>KML生成</button>
+      <button class="btn" id="btn-gen-map" onclick="generateKMLandMap()" disabled style="background:#1a6b8a;color:white;">KML生成＋MAP</button>
+      <button class="btn" id="btn-show-map" onclick="generateMapOnly()" disabled style="background:#1a6b8a;color:white;">MAPのみ</button>
+    </div>
+
+  </div>
+
+  <!-- ===== 右ペイン ===== -->
+  <div class="right-pane">
+    <div class="right-header">
+      <div class="section-header" style="margin:0">━ System Name一覧 ━</div>
+    </div>
+
+    <div class="search-row">
+      <span style="font-size:0.82rem">検索:</span>
+      <input type="text" class="search-input" id="search-input" placeholder="System Name を入力..." oninput="filterList()">
+      <button class="btn btn-sm" style="background:var(--danger);color:white;border:none;border-radius:3px;cursor:pointer" onclick="clearSearch()">クリア</button>
+    </div>
+
+    <div class="sel-controls">
+      <button class="btn btn-sm btn-primary" onclick="selectAll()">ALL選択</button>
+      <button class="btn btn-sm btn-danger" onclick="clearSelection()">選択解除</button>
+      <span class="sel-count" id="sel-count"></span>
+    </div>
+    <div class="legend">─ Cable  ◎ Repeater  ◇ Equaliser</div>
+
+    <div class="sys-list" id="sys-list" style="margin-top:6px"></div>
+
+    <div class="section-header" style="margin-top:10px">━ ログ ━</div>
+    <div class="log-area" id="log-area"></div>
+  </div>
+</div>
+
+<div id="map-area" style="display:none; height:800px; border-top:2px solid var(--border);">
+  <div style="background:var(--bg); padding:4px 16px; display:flex; align-items:center; gap:8px;">
+    <span style="font-size:0.82rem; font-weight:bold; color:var(--accent);">━ 地図表示 ━</span>
+    <button onclick="closeMap()" style="background:var(--danger);color:white;border:none;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:0.78rem;">✕ 閉じる</button>
+  </div>
+  <div id="map" style="height:760px;"></div>
+</div>
+<footer>Developed by: Ryo Shinozaki</footer>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
+<script type="text/javascript">
+// ===== ファイル管理 =====
+const files = { fibre: [], 'fibre-oss': [], rep: [], eq: [] };
+
+function onFileSelect(input, key) {
+  files[key] = Array.from(input.files);
+  const disp = document.getElementById('disp-' + key);
+  if (files[key].length === 0) {
+    disp.textContent = '未選択';
+    disp.classList.remove('has-file');
+  } else {
+    disp.textContent = files[key].map(f => f.name).join('\n');
+    disp.classList.add('has-file');
+  }
+}
+
+function clearFile(key) {
+  files[key] = [];
+  document.getElementById('disp-' + key).textContent = '未選択';
+  document.getElementById('disp-' + key).classList.remove('has-file');
+  document.getElementById('inp-' + key).value = '';
+}
+
+// ===== ログ =====
+function log(msg) {
+  const el = document.getElementById('log-area');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function logClear() { document.getElementById('log-area').textContent = ''; }
+
+// ===== System Name一覧 =====
+let allNames = [];
+let displayNames = [];
+let selectedNames = new Set();
+let lineNames = new Set();
+let lineOssNames = new Set();
+let repNames = new Set();
+let eqNames = new Set();
+
+function renderList() {
+  const keyword = document.getElementById('search-input').value.trim().toLowerCase();
+  displayNames = keyword
+    ? allNames.filter(n => n.toLowerCase().includes(keyword))
+    : [...allNames];
+
+  const el = document.getElementById('sys-list');
+  el.innerHTML = '';
+  displayNames.forEach(name => {
+    const div = document.createElement('div');
+    div.className = 'sys-item' + (selectedNames.has(name) ? ' selected' : '');
+    const c1 = (lineNames.has(name) || lineOssNames.has(name)) ? '─' : ' ';
+    const c2 = repNames.has(name)  ? '◎' : ' ';
+    const c3 = eqNames.has(name)   ? '◇' : ' ';
+    const icons = `<span style="display:inline-block;width:1.1em;text-align:center">${c1}</span><span style="display:inline-block;width:1.1em;text-align:center">${c2}</span><span style="display:inline-block;width:1.1em;text-align:center">${c3}</span>`;
+    div.innerHTML = `<span class="sys-icons">${icons}</span><span>${name}</span>`;
+    div.onclick = (e) => {
+      if (e.shiftKey && lastClicked !== null) {
+        const i1 = displayNames.indexOf(lastClicked);
+        const i2 = displayNames.indexOf(name);
+        const [lo, hi] = [Math.min(i1,i2), Math.max(i1,i2)];
+        displayNames.slice(lo, hi+1).forEach(n => selectedNames.add(n));
+      } else if (e.ctrlKey || e.metaKey) {
+        selectedNames.has(name) ? selectedNames.delete(name) : selectedNames.add(name);
+      } else {
+        selectedNames.has(name) ? selectedNames.delete(name) : selectedNames.add(name);
+      }
+      lastClicked = name;
+      renderList();
+      updateSelCount();
+    };
+    el.appendChild(div);
+  });
+}
+
+let lastClicked = null;
+
+function filterList() { renderList(); }
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  renderList();
+}
+function selectAll() {
+  displayNames.forEach(n => selectedNames.add(n));
+  renderList();
+  updateSelCount();
+}
+function clearSelection() {
+  selectedNames.clear();
+  renderList();
+  updateSelCount();
+}
+function updateSelCount() {
+  const cnt = selectedNames.size;
+  document.getElementById('sel-count').textContent = cnt > 0 ? `${cnt}件選択中` : '';
+}
+
+// ===== プログレスバー =====
+function showProgress(id, val, max) {
+  const wrap = document.getElementById('prog-' + id);
+  wrap.style.display = 'block';
+  const pct = max > 0 ? (val / max * 100) : 0;
+  document.getElementById('prog-' + id + '-fill').style.width = pct + '%';
+  document.getElementById('prog-' + id + '-text').textContent = `${val} / ${max}`;
+}
+function hideProgress(id) {
+  document.getElementById('prog-' + id).style.display = 'none';
+}
+
+
+// ===== 投影変換パラメータ =====
+const _a = 6378137.0;
+const _e2 = 0.00669437999014;
+const _e = Math.sqrt(_e2);
+const _k = 0.839504511565919;
+const _lat0r = 33.0 * Math.PI / 180;
+const _lon0 = 80.0;
+
+function _psi(phi) {
+  return Math.log(Math.tan(Math.PI/4 + phi/2) *
+    Math.pow((1 - _e*Math.sin(phi))/(1 + _e*Math.sin(phi)), _e/2));
+}
+const _psi0 = _psi(_lat0r);
+
+function projToLatLon(x, y) {
+  let lon = x / (_a * _k) * (180/Math.PI) + _lon0;
+  const psi_t = y / (_a * _k) + _psi0;
+  let phi = 2*Math.atan(Math.exp(psi_t)) - Math.PI/2;
+  let phi_new = phi;
+  for (let i = 0; i < 20; i++) {
+    phi_new = 2*Math.atan(Math.exp(psi_t) *
+      Math.pow((1 + _e*Math.sin(phi))/(1 - _e*Math.sin(phi)), _e/2)) - Math.PI/2;
+    if (Math.abs(phi_new - phi) < 1e-12) break;
+    phi = phi_new;
+  }
+  if (lon > 180) lon -= 360;
+  else if (lon < -180) lon += 360;
+  return [phi_new * (180/Math.PI), lon];
+}
+
+function xmlEscape(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function b64decode(b64) {
+  const clean = b64.replace(/\s/g,'');
+  const bin = atob(clean);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf;
+}
+
+function readDouble(buf, offset) {
+  const dv = new DataView(buf.buffer, buf.byteOffset + offset, 8);
+  return dv.getFloat64(0, true); // little-endian
+}
+
+function parseSingleGeom(buf, start) {
+  const x0 = readDouble(buf, start + 20);
+  const rawX = [], rawY = [];
+  for (let i = start + 28; i + 23 < buf.length; i += 24) {
+    const yv = readDouble(buf, i);
+    const z  = readDouble(buf, i + 8);
+    const xv = readDouble(buf, i + 16);
+    if (z === 0.0 && Math.abs(yv) < 20000000 && Math.abs(xv) < 20000000 && yv !== 0 && xv !== 0) {
+      rawY.push(yv); rawX.push(xv);
+    }
+  }
+  const coords = [];
+  for (let j = 0; j < rawY.length; j++) {
+    const x = j === 0 ? x0 : rawX[j-1];
+    try {
+      const [lat, lon] = projToLatLon(x, rawY[j]);
+      if (lat > -90 && lat < 90 && lon > -180 && lon < 180) coords.push([lon, lat]);
+    } catch(e) {}
+  }
+  return coords;
+}
+
+function decodeLine(b64) {
+  try {
+    const buf = b64decode(b64);
+    const SIG = [0xc2, 0xff, 0xd2, 0x0f];
+    if (buf[0] === 0xc2) {
+      const c = parseSingleGeom(buf, 0);
+      return c.length >= 2 ? [c] : [];
+    } else {
+      const positions = [];
+      for (let i = 0; i < buf.length - 3; i++) {
+        if (buf[i]===SIG[0] && buf[i+1]===SIG[1] && buf[i+2]===SIG[2] && buf[i+3]===SIG[3])
+          positions.push(i);
+      }
+      const res = [];
+      for (let k = 0; k < positions.length; k++) {
+        const st = positions[k];
+        const en = k+1 < positions.length ? positions[k+1] : buf.length;
+        const c = parseSingleGeom(buf.slice(st, en), 0);
+        if (c.length >= 2) res.push(c);
+      }
+      return res;
+    }
+  } catch(e) { return []; }
+}
+
+function decodePoint(b64) {
+  try {
+    const buf = b64decode(b64);
+    if (buf.length < 32) return null;
+    const x = readDouble(buf, 16);
+    const y = readDouble(buf, 24);
+    if (Math.abs(x) > 20000000 || Math.abs(y) > 20000000) return null;
+    const [lat, lon] = projToLatLon(x, y);
+    if (lat > -90 && lat < 90 && lon > -180 && lon < 180) return [lat, lon];
+  } catch(e) {}
+  return null;
+}
+
+function parseXMLRecords(texts) {
+  const recs = [];
+  for (const txt of texts) {
+    try {
+      const doc = new DOMParser().parseFromString(txt, 'text/xml');
+      recs.push(...Array.from(doc.documentElement.children));
+    } catch(e) {}
+  }
+  return recs;
+}
+
+function getField(rec, tag) {
+  return rec.querySelector(tag)?.textContent || '';
+}
+
+function isOos(name) {
+  const nl = name.toLowerCase();
+  return nl.includes('(oos)') || nl.includes('(abnd)');
+}
+
+function generateKMLContent(xmlTexts, selectedNames, folderMode, docName, sc) {
+  // ライン解析
+  const lineData = {}, lineOssData = {};
+  function parseLineRecs(recs, data) {
+    for (const rec of recs) {
+      const geom = getField(rec, 'GDO_GEOMETRY').trim();
+      if (!geom) continue;
+      const gl = decodeLine(geom);
+      if (!gl.length) continue;
+      const name = getField(rec, 'SystemName') || '（名称なし）';
+      if (!data[name]) {
+        data[name] = {
+          SystemType: getField(rec,'SystemType'),
+          Inst_year:  getField(rec,'Inst_year'),
+          Issue:      getField(rec,'Issue'),
+          ID1:        getField(rec,'ID1'),
+          geom_list:  gl
+        };
+      } else {
+        data[name].geom_list.push(...gl);
+      }
+    }
+  }
+  parseLineRecs(parseXMLRecords(xmlTexts['fibre']), lineData);
+  parseLineRecs(parseXMLRecords(xmlTexts['fibre-oss']), lineOssData);
+
+  // ポイント解析
+  const pointData = {};
+  for (const rec of parseXMLRecords([...xmlTexts['rep'], ...xmlTexts['eq']])) {
+    const geom = getField(rec, 'GDO_GEOMETRY').trim();
+    if (!geom) continue;
+    const res = decodePoint(geom);
+    if (!res) continue;
+    const [lat, lon] = res;
+    const sn = getField(rec, 'SystemName') || '（名称なし）';
+    const ft = getField(rec, 'Feat_type') || 'Repeater';
+    if (!pointData[sn]) pointData[sn] = {};
+    if (!pointData[sn][ft]) pointData[sn][ft] = [];
+    pointData[sn][ft].push({
+      name: sn, feat_type: ft,
+      issue: getField(rec,'Issue'), id1: getField(rec,'ID1'),
+      lat, lon
+    });
+  }
+
+  const lc=sc.line_color, lw=sc.line_width;
+  const oc=sc.oss_color,  ow=sc.oss_width;
+  const rc=sc.rep_color,  rs=sc.rep_size, ri=sc.rep_icon;
+  const ec=sc.eq_color,   es=sc.eq_size,  ei=sc.eq_icon;
+
+  const styles = `  <Style id="lineStyle"><LineStyle><color>${lc}</color><width>${lw}</width></LineStyle></Style>
+  <Style id="lineOssStyle"><LineStyle><color>${oc}</color><width>${ow}</width></LineStyle></Style>
+  <Style id="repeaterStyle">
+    <IconStyle><color>${rc}</color><scale>${rs}</scale><Icon><href>${ri}</href></Icon></IconStyle>
+    <LabelStyle><scale>0.0</scale></LabelStyle></Style>
+  <Style id="equaliserStyle">
+    <IconStyle><color>${ec}</color><scale>${es}</scale><Icon><href>${ei}</href></Icon></IconStyle>
+    <LabelStyle><scale>0.0</scale></LabelStyle></Style>`;
+
+  function makeLinePM(sn, d, styleId) {
+    let pms = '';
+    for (const coords of d.geom_list) {
+      const cs = coords.map(([lon,lat]) => `${lon},${lat},0`).join(' ');
+      pms += `    <Placemark>
+      <name>${xmlEscape(sn)}</name>
+      <description><![CDATA[SystemType: ${xmlEscape(d.SystemType)}<br/>Inst_year: ${xmlEscape(d.Inst_year)}<br/>Issue: ${xmlEscape(d.Issue)}<br/>ID: ${xmlEscape(d.ID1)}]]></description>
+      <styleUrl>#${styleId}</styleUrl>
+      <LineString><tessellate>1</tessellate><coordinates>${cs}</coordinates></LineString>
+    </Placemark>
+`;
+    }
+    return pms;
+  }
+
+  function makePointPM(pts, styleId) {
+    let pms = '';
+    for (const pt of pts) {
+      pms += `    <Placemark>
+      <name>${xmlEscape(pt.name)}</name>
+      <description><![CDATA[Type: ${xmlEscape(pt.feat_type)}<br/>Issue: ${xmlEscape(pt.issue)}<br/>ID: ${xmlEscape(pt.id1)}<br/>Lat: ${pt.lat.toFixed(6)}<br/>Lon: ${pt.lon.toFixed(6)}]]></description>
+      <styleUrl>#${styleId}</styleUrl>
+      <Point><coordinates>${pt.lon},${pt.lat},0</coordinates></Point>
+    </Placemark>
+`;
+    }
+    return pms;
+  }
+
+  let folderXml = '';
+  if (folderMode === 'lp') {
+    let lf='    <Folder>
+      <name>Cable</name>
+';
+    let rf='    <Folder>
+      <name>Repeater</name>
+';
+    let ef='    <Folder>
+      <name>Equaliser</name>
+';
+    let of='    <Folder>
+      <name>Cable(OOS)</name>
+';
+    let rof='    <Folder>
+      <name>Repeater(OOS)</name>
+';
+    let eof_='    <Folder>
+      <name>Equaliser(OOS)</name>
+';
+
+    for (const sn of selectedNames) {
+      const oos = isOos(sn);
+      for (const [src, sid] of [[lineData,'lineStyle'],[lineOssData,'lineOssStyle']]) {
+        if (!src[sn]) continue;
+        let t = oos ? of : lf;
+        t += `      <Folder>
+        <name>${xmlEscape(sn)}</name>
+`;
+        t += makeLinePM(sn, src[sn], sid);
+        t += '      </Folder>
+';
+        if (oos) of = t; else lf = t;
+      }
+      if (pointData[sn]) {
+        for (const [ft, pts] of Object.entries(pointData[sn])) {
+          const isEq = ft.toLowerCase().includes('equaliser');
+          const sid = isEq ? 'equaliserStyle' : 'repeaterStyle';
+          let t = isEq ? (oos ? eof_ : ef) : (oos ? rof : rf);
+          t += `      <Folder>
+        <name>${xmlEscape(sn)}</name>
+`;
+          t += makePointPM(pts, sid);
+          t += '      </Folder>
+';
+          if (isEq) { if (oos) eof_=t; else ef=t; }
+          else      { if (oos) rof=t;  else rf=t; }
+        }
+      }
+    }
+    lf+='    </Folder>
+'; rf+='    </Folder>
+'; ef+='    </Folder>
+';
+    of+='    </Folder>
+'; rof+='    </Folder>
+'; eof_+='    </Folder>
+';
+    const inuse = '  <Folder>
+    <name>IN-USE</name>
+' + lf + rf + ef + '  </Folder>
+';
+    const oss   = '  <Folder>
+    <name>OSS</name>
+'    + of + rof + eof_ + '  </Folder>
+';
+    folderXml = inuse + oss;
+  } else {
+    for (const sn of selectedNames) {
+      folderXml += `  <Folder>
+    <name>${xmlEscape(sn)}</name>
+`;
+      if (lineData[sn])    folderXml += makeLinePM(sn, lineData[sn], 'lineStyle');
+      if (lineOssData[sn]) folderXml += makeLinePM(sn, lineOssData[sn], 'lineOssStyle');
+      if (pointData[sn]) {
+        for (const [ft, pts] of Object.entries(pointData[sn])) {
+          const sid = ft.toLowerCase().includes('equaliser') ? 'equaliserStyle' : 'repeaterStyle';
+          folderXml += `    <Folder>
+      <name>${xmlEscape(ft)}</name>
+`;
+          folderXml += makePointPM(pts, sid);
+          folderXml += '    </Folder>
+';
+        }
+      }
+      folderXml += '  </Folder>
+';
+    }
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>${xmlEscape(docName)}</name>
+${styles}
+${folderXml}</Document>
+</kml>`;
+}
+
+// ===== 初期化 =====
+function initPyodide() {
+  document.getElementById('loading').style.display = 'none';
+  log('初期化完了');
+}
+
+// ===== XML読み込み =====
+async function loadXML() {
+  logClear();
+  log('─── 読み込み開始 ───');
+  allNames = [];
+  selectedNames.clear();
+  lineNames.clear();
+  lineOssNames.clear();
+  repNames.clear();
+  eqNames.clear();
+
+  const allFiles = [
+    ...files['fibre'].map(f => ({file: f, kind: 'fibre'})),
+    ...files['fibre-oss'].map(f => ({file: f, kind: 'fibre-oss'})),
+    ...files['rep'].map(f => ({file: f, kind: 'rep'})),
+    ...files['eq'].map(f => ({file: f, kind: 'eq'})),
+  ];
+
+  if (allFiles.length === 0) {
+    log('[エラー] XMLファイルが選択されていません');
+    return;
+  }
+
+  showProgress('load', 0, allFiles.length);
+
+  for (let i = 0; i < allFiles.length; i++) {
+    const {file, kind} = allFiles[i];
+    const text = await file.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/xml');
+    const records = doc.querySelectorAll(':root > *');
+    const kindLabel = {fibre:'Fibre','fibre-oss':'Fibre(OSS)',rep:'Repeater',eq:'Equaliser'}[kind]||kind;
+    log(`[${kindLabel}] ${file.name} → ${records.length}件`);
+
+    records.forEach(rec => {
+      const name = rec.querySelector('SystemName')?.textContent?.trimStart() || '（名称なし）';
+      if (!allNames.includes(name)) allNames.push(name);
+      if (kind === 'fibre') lineNames.add(name);
+      if (kind === 'fibre-oss') lineOssNames.add(name);
+      if (kind === 'rep') repNames.add(name);
+      if (kind === 'eq') eqNames.add(name);
+    });
+
+    showProgress('load', i + 1, allFiles.length);
+  }
+
+  allNames.sort();
+  const subtotal = lineNames.size + lineOssNames.size + repNames.size + eqNames.size;
+  const duplicates = subtotal - allNames.length;
+  log('─── System Name集計 ───');
+  log(`Cable      : ${String(lineNames.size).padStart(4)} System`);
+  log(`Cable(OSS) : ${String(lineOssNames.size).padStart(4)} System`);
+  log(`Repeater   : ${String(repNames.size).padStart(4)} System`);
+  log(`Equaliser  : ${String(eqNames.size).padStart(4)} System`);
+  log(`小計（延べ）: ${subtotal}件`);
+  log(`うち複数種別に存在するSystem: ${duplicates}件`);
+  log(`重複排除後: ${allNames.length}件`);
+  log('─'.repeat(40));
+  log(`System Name合計: ${allNames.length}件`);
+  log('※件数はGDO_GEOMETRY解析前の概算です。KML生成時に正確に処理されます。');
+  log('読み込み完了');
+  hideProgress('load');
+  renderList();
+  // 読み込み完了後にALL選択
+  allNames.forEach(n => selectedNames.add(n));
+  renderList();
+  updateSelCount();
+  document.getElementById('btn-gen').disabled = false;
+  document.getElementById('btn-gen-map').disabled = false;
+  document.getElementById('btn-show-map').disabled = false;
+}
+
+// ===== RGB→KML色変換 =====
+function rgbToKml(hex) {
+  const r = hex.slice(1,3), g = hex.slice(3,5), b = hex.slice(5,7);
+  return `ff${b}${g}${r}`;
+}
+
+// ===== KML生成 =====
+async function generateKML(doDownload=true) {
+  if (selectedNames.size === 0) {
+    alert('System Nameを選択してください');
+    return;
+  }
+  const outName = document.getElementById('out-name').value.trim() || 'GeoCable_KML_Generator_Web';
+  const folderMode = document.querySelector('input[name=folder]:checked').value;
+
+  const lineColor = rgbToKml(document.getElementById('col-line').value);
+  const lineWidth = document.getElementById('size-line').value;
+  const ossColor  = rgbToKml(document.getElementById('col-oss').value);
+  const ossWidth  = document.getElementById('size-oss').value;
+  const repColor  = rgbToKml(document.getElementById('col-rep').value);
+  const repSize   = document.getElementById('size-rep').value;
+  const repIcon   = `http://maps.google.com/mapfiles/kml/shapes/${document.getElementById('icon-rep').value}.png`;
+  const eqColor   = rgbToKml(document.getElementById('col-eq').value);
+  const eqSize    = document.getElementById('size-eq').value;
+  const eqIcon    = `http://maps.google.com/mapfiles/kml/shapes/${document.getElementById('icon-eq').value}.png`;
+
+  const selected = [...selectedNames];
+  showProgress('gen', selected.length, selected.length);
+  document.getElementById('prog-gen-text').textContent = 'KML生成中... しばらくお待ちください';
+  log('─── KML生成中 ───');
+
+  // JS実装でKML生成
+  const xmlTexts = {};
+  for (const kind of ['fibre', 'fibre-oss', 'rep', 'eq']) {
+    xmlTexts[kind] = [];
+    for (const f of files[kind]) {
+      xmlTexts[kind].push(await f.text());
+    }
+  }
+
+  const kmlContent = generateKMLContent(xmlTexts, selected, folderMode, outName, {
+    line_color: lineColor, line_width: lineWidth,
+    oss_color:  ossColor,  oss_width:  ossWidth,
+    rep_color:  repColor,  rep_size:   repSize,   rep_icon: repIcon,
+    eq_color:   eqColor,   eq_size:    eqSize,    eq_icon:  eqIcon,
+  });
+
+  hideProgress('gen');
+  log(`KML生成完了 (${selected.length}件)`);
+
+  // ダウンロード＆地図表示用に保持
+  if (doDownload) {
+    const blob = new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = outName + '.kml';
+    a.click();
+    log(`ダウンロード: ${outName}.kml`);
+  }
+
+  // 地図表示ボタンを追加
+  window._lastKmlContent = kmlContent;
+  window._lastKmlUrl = URL.createObjectURL(new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'}));
+  log('「地図で表示」ボタンで地図に表示できます');
+  // MAP用データ準備完了
+}
+
+// ===== KML生成＋MAP =====
+async function generateKMLandMap() {
+  await generateKML(true);
+  if (window._lastKmlContent) showMap();
+}
+
+// ===== MAPのみ =====
+async function generateMapOnly() {
+  await generateKML(false);  // ダウンロードしない
+  if (window._lastKmlContent) showMap();
+}
+
+// ===== 地図表示 =====
+let map = null;
+let kmlLayer = null;
+
+function showMap() {
+  const mapArea = document.getElementById('map-area');
+  mapArea.style.display = 'block';
+  mapArea.scrollIntoView({behavior: 'smooth'});
+
+  if (!map) {
+    map = L.map('map').setView([20, 120], 3);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(map);
+
+  }
+
+  if (kmlLayer) {
+    map.removeLayer(kmlLayer);
+  }
+
+  // KMLからスタイル・フォルダ情報を読み取る
+  const parser = new DOMParser();
+  const kmlDoc = parser.parseFromString(window._lastKmlContent, 'text/xml');
+
+  // KML色変換 AABBGGRR → #RRGGBB
+  function kmlColorToHex(kmlColor) {
+    if (!kmlColor || kmlColor.length < 8) return '#ffffff';
+    const r = kmlColor.slice(6, 8);
+    const g = kmlColor.slice(4, 6);
+    const b = kmlColor.slice(2, 4);
+    return '#' + r + g + b;
+  }
+
+  // Styleを読み取る
+  const styles = {};
+  kmlDoc.querySelectorAll('Style').forEach(style => {
+    const id = style.getAttribute('id');
+    if (!id) return;
+    const lineColor = style.querySelector('LineStyle > color')?.textContent || '';
+    const lineWidth = parseFloat(style.querySelector('LineStyle > width')?.textContent || '1');
+    const iconColor = style.querySelector('IconStyle > color')?.textContent || '';
+    const iconScale = parseFloat(style.querySelector('IconStyle > scale')?.textContent || '1');
+    styles[id] = {
+      lineColor: kmlColorToHex(lineColor),
+      lineWidth: lineWidth,
+      iconColor: kmlColorToHex(iconColor),
+      iconScale: iconScale,
+    };
+  });
+
+  // PlacemarkのstyleUrl→styleIdマッピング
+  const placemarkStyles = {};
+  kmlDoc.querySelectorAll('Placemark').forEach(pm => {
+    const name = pm.querySelector('name')?.textContent || '';
+    const styleUrl = pm.querySelector('styleUrl')?.textContent?.replace('#', '') || '';
+    placemarkStyles[name] = styleUrl;
+  });
+
+  // KMLを直接パースしてL.polyline/circleMarkerで描画（180°超の経度も対応）
+  if (kmlLayer) { map.removeLayer(kmlLayer); kmlLayer = null; }
+  kmlLayer = L.layerGroup();
+  const bounds = [];
+
+  kmlDoc.querySelectorAll('Placemark').forEach(pm => {
+    const name = pm.querySelector('name')?.textContent || '';
+    const desc = pm.querySelector('description')?.textContent || '';
+    const styleUrl = pm.querySelector('styleUrl')?.textContent?.replace('#','') || '';
+    const s = styles[styleUrl] || {};
+    const popup = `<b>${name}</b><br/>${desc}`;
+
+    const lineEl = pm.querySelector('LineString coordinates');
+    if (lineEl) {
+      const raw = lineEl.textContent.trim().split(/\s+/);
+      const latlngs = raw.map(c => {
+        const [lon, lat] = c.split(',').map(Number);
+        return [lat, lon];
+      }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+      if (latlngs.length >= 2) {
+        // 日付変更線をまたぐ点で分割し、各セグメントを個別に描画
+        const segments = [[]];
+        for (let i = 0; i < latlngs.length; i++) {
+          segments[segments.length-1].push(latlngs[i]);
+          if (i < latlngs.length-1) {
+            if (Math.abs(latlngs[i+1][1] - latlngs[i][1]) > 180) {
+              segments.push([]); // またぐ点で切断
+            }
+          }
+        }
+        segments.forEach(seg => {
+          if (seg.length >= 2) {
+            const line = L.polyline(seg, {
+              color: s.lineColor || '#ffffff',
+              weight: s.lineWidth || 1,
+              opacity: 1
+            });
+            line.bindPopup(popup, {maxWidth: 300});
+            kmlLayer.addLayer(line);
+            seg.forEach(c => bounds.push(c));
+          }
+        });
+      }
+    }
+
+    const pointEl = pm.querySelector('Point coordinates');
+    if (pointEl && (s.iconScale === undefined || s.iconScale > 0)) {
+      const parts = pointEl.textContent.trim().split(',');
+      const lon = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const color = s.iconColor || '#ffff00';
+        const circle = L.circleMarker([lat, lon], {
+          radius: 1,
+          fillColor: color,
+          color: color,
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 1
+        });
+        circle.bindPopup(popup, {maxWidth: 300});
+        kmlLayer.addLayer(circle);
+        bounds.push([lat, lon]);
+      }
+    }
+  });
+
+  kmlLayer.addTo(map);
+  if (bounds.length > 0) {
+    map.fitBounds(bounds);
+  }
+
+  setTimeout(() => map.invalidateSize(), 100);
+}
+
+function closeMap() {
+  document.getElementById('map-area').style.display = 'none';
+}
+
+// ===== 起動 =====
+document.addEventListener('DOMContentLoaded', initPyodide);
+// フォールバック：既にDOMが読み込まれている場合
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  initPyodide();
+}
+</script>
+</body>
+</html>
