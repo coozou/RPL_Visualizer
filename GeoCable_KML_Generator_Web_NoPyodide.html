@@ -794,7 +794,7 @@ function generateKMLContent(xmlTexts, selectedNames, folderMode, docName, sc) {
       if (!geom) continue;
       var gl = decodeLine(geom);
       if (!gl.length) continue;
-      var name = getField(rec, 'SystemName') || '\uuff08\u540d\u79f0\u306a\u3057\uff09';
+      var name = getField(rec, 'SystemName') || '\uff08\u540d\u79f0\u306a\u3057\uff09';
       if (!data[name]) {
         data[name] = {
           SystemType: getField(rec,'SystemType'),
