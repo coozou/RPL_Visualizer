@@ -541,15 +541,15 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
-<script type="text/javascript">
-// ===== ファイル管理 =====
+<script type="text/javascript" charset="utf-8">
+// ===== \u30d5\u30a1\u30a4\u30eb\u7ba1\u7406 =====
 const files = { fibre: [], 'fibre-oss': [], rep: [], eq: [] };
 
 function onFileSelect(input, key) {
   files[key] = Array.from(input.files);
   const disp = document.getElementById('disp-' + key);
   if (files[key].length === 0) {
-    disp.textContent = '未選択';
+    disp.textContent = '\u672a\u9078\u629e';
     disp.classList.remove('has-file');
   } else {
     disp.textContent = files[key].map(f => f.name).join('\n');
@@ -559,12 +559,12 @@ function onFileSelect(input, key) {
 
 function clearFile(key) {
   files[key] = [];
-  document.getElementById('disp-' + key).textContent = '未選択';
+  document.getElementById('disp-' + key).textContent = '\u672a\u9078\u629e';
   document.getElementById('disp-' + key).classList.remove('has-file');
   document.getElementById('inp-' + key).value = '';
 }
 
-// ===== ログ =====
+// ===== \u30ed\u30b0 =====
 function log(msg) {
   const el = document.getElementById('log-area');
   el.textContent += msg + '\n';
@@ -572,14 +572,14 @@ function log(msg) {
 }
 function logClear() { document.getElementById('log-area').textContent = ''; }
 
-// ===== System Name一覧 =====
-let allNames = [];
-let displayNames = [];
-let selectedNames = new Set();
-let lineNames = new Set();
-let lineOssNames = new Set();
-let repNames = new Set();
-let eqNames = new Set();
+// ===== System Name\u4e00\u89a7 =====
+var allNames = [];
+var displayNames = [];
+var selectedNames = new Set();
+var lineNames = new Set();
+var lineOssNames = new Set();
+var repNames = new Set();
+var eqNames = new Set();
 
 function renderList() {
   const keyword = document.getElementById('search-input').value.trim().toLowerCase();
@@ -592,9 +592,9 @@ function renderList() {
   displayNames.forEach(name => {
     const div = document.createElement('div');
     div.className = 'sys-item' + (selectedNames.has(name) ? ' selected' : '');
-    const c1 = (lineNames.has(name) || lineOssNames.has(name)) ? '─' : ' ';
-    const c2 = repNames.has(name)  ? '◎' : ' ';
-    const c3 = eqNames.has(name)   ? '◇' : ' ';
+    const c1 = (lineNames.has(name) || lineOssNames.has(name)) ? '\u2500' : ' ';
+    const c2 = repNames.has(name)  ? '\u25ce' : ' ';
+    const c3 = eqNames.has(name)   ? '\u25c7' : ' ';
     const icons = `<span style="display:inline-block;width:1.1em;text-align:center">${c1}</span><span style="display:inline-block;width:1.1em;text-align:center">${c2}</span><span style="display:inline-block;width:1.1em;text-align:center">${c3}</span>`;
     div.innerHTML = `<span class="sys-icons">${icons}</span><span>${name}</span>`;
     div.onclick = (e) => {
@@ -616,7 +616,7 @@ function renderList() {
   });
 }
 
-let lastClicked = null;
+var lastClicked = null;
 
 function filterList() { renderList(); }
 function clearSearch() {
@@ -635,10 +635,10 @@ function clearSelection() {
 }
 function updateSelCount() {
   const cnt = selectedNames.size;
-  document.getElementById('sel-count').textContent = cnt > 0 ? `${cnt}件選択中` : '';
+  document.getElementById('sel-count').textContent = cnt > 0 ? `${cnt}\u4ef6\u9078\u629e\u4e2d` : '';
 }
 
-// ===== プログレスバー =====
+// ===== \u30d7\u30ed\u30b0\u30ec\u30b9\u30d0\u30fc =====
 function showProgress(id, val, max) {
   const wrap = document.getElementById('prog-' + id);
   wrap.style.display = 'block';
@@ -651,19 +651,19 @@ function hideProgress(id) {
 }
 
 
-// ===== 投影変換パラメータ =====
-const _a = 6378137.0;
-const _e2 = 0.00669437999014;
-const _e = Math.sqrt(_e2);
-const _k = 0.839504511565919;
-const _lat0r = 33.0 * Math.PI / 180;
-const _lon0 = 80.0;
+// ===== \u6295\u5f71\u5909\u63db\u30d1\u30e9\u30e1\u30fc\u30bf =====
+var _a = 6378137.0;
+var _e2 = 0.00669437999014;
+var _e = Math.sqrt(_e2);
+var _k = 0.839504511565919;
+var _lat0r = 33.0 * Math.PI / 180;
+var _lon0 = 80.0;
 
 function _psi(phi) {
   return Math.log(Math.tan(Math.PI/4 + phi/2) *
     Math.pow((1 - _e*Math.sin(phi))/(1 + _e*Math.sin(phi)), _e/2));
 }
-const _psi0 = _psi(_lat0r);
+var _psi0 = _psi(_lat0r);
 
 function projToLatLon(x, y) {
   let lon = x / (_a * _k) * (180/Math.PI) + _lon0;
@@ -687,7 +687,7 @@ function xmlEscape(s) {
 }
 
 function b64decode(b64) {
-  const clean = b64.replace(/\s/g,'');
+  const clean = b64.replace(/\s+/g,'');
   const bin = atob(clean);
   const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
@@ -780,7 +780,7 @@ function isOos(name) {
 }
 
 function generateKMLContent(xmlTexts, selectedNames, folderMode, docName, sc) {
-  // ライン解析
+  // \u30e9\u30a4\u30f3\u89e3\u6790
   const lineData = {}, lineOssData = {};
   function parseLineRecs(recs, data) {
     for (const rec of recs) {
@@ -788,7 +788,7 @@ function generateKMLContent(xmlTexts, selectedNames, folderMode, docName, sc) {
       if (!geom) continue;
       const gl = decodeLine(geom);
       if (!gl.length) continue;
-      const name = getField(rec, 'SystemName') || '（名称なし）';
+      const name = getField(rec, 'SystemName') || '\uff08\u540d\u79f0\u306a\u3057\uff09';
       if (!data[name]) {
         data[name] = {
           SystemType: getField(rec,'SystemType'),
@@ -805,7 +805,7 @@ function generateKMLContent(xmlTexts, selectedNames, folderMode, docName, sc) {
   parseLineRecs(parseXMLRecords(xmlTexts['fibre']), lineData);
   parseLineRecs(parseXMLRecords(xmlTexts['fibre-oss']), lineOssData);
 
-  // ポイント解析
+  // \u30dd\u30a4\u30f3\u30c8\u89e3\u6790
   const pointData = {};
   for (const rec of parseXMLRecords([...xmlTexts['rep'], ...xmlTexts['eq']])) {
     const geom = getField(rec, 'GDO_GEOMETRY').trim();
@@ -813,7 +813,7 @@ function generateKMLContent(xmlTexts, selectedNames, folderMode, docName, sc) {
     const res = decodePoint(geom);
     if (!res) continue;
     const [lat, lon] = res;
-    const sn = getField(rec, 'SystemName') || '（名称なし）';
+    const sn = getField(rec, 'SystemName') || '\uff08\u540d\u79f0\u306a\u3057\uff09';
     const ft = getField(rec, 'Feat_type') || 'Repeater';
     if (!pointData[sn]) pointData[sn] = {};
     if (!pointData[sn][ft]) pointData[sn][ft] = [];
@@ -869,84 +869,50 @@ function generateKMLContent(xmlTexts, selectedNames, folderMode, docName, sc) {
 
   let folderXml = '';
   if (folderMode === 'lp') {
-    let lf='    <Folder>
-      <name>Cable</name>
-';
-    let rf='    <Folder>
-      <name>Repeater</name>
-';
-    let ef='    <Folder>
-      <name>Equaliser</name>
-';
-    let of='    <Folder>
-      <name>Cable(OOS)</name>
-';
-    let rof='    <Folder>
-      <name>Repeater(OOS)</name>
-';
-    let eof_='    <Folder>
-      <name>Equaliser(OOS)</name>
-';
+    let lf='    <Folder>\n      <name>Cable</name>\n';
+    let rf='    <Folder>\n      <name>Repeater</name>\n';
+    let ef='    <Folder>\n      <name>Equaliser</name>\n';
+    let of_='    <Folder>\n      <name>Cable(OOS)</name>\n';
+    let rof='    <Folder>\n      <name>Repeater(OOS)</name>\n';
+    let eof_='    <Folder>\n      <name>Equaliser(OOS)</name>\n';
 
     for (const sn of selectedNames) {
       const oos = isOos(sn);
       for (const [src, sid] of [[lineData,'lineStyle'],[lineOssData,'lineOssStyle']]) {
         if (!src[sn]) continue;
         let t = oos ? of : lf;
-        t += `      <Folder>
-        <name>${xmlEscape(sn)}</name>
-`;
+        t += '      <Folder>\n        <name>' + xmlEscape(sn) + '</name>\n';
         t += makeLinePM(sn, src[sn], sid);
-        t += '      </Folder>
-';
-        if (oos) of = t; else lf = t;
+        t += '      </Folder>\n';
+        if (oos) of_ = t; else lf = t;
       }
       if (pointData[sn]) {
         for (const [ft, pts] of Object.entries(pointData[sn])) {
           const isEq = ft.toLowerCase().includes('equaliser');
           const sid = isEq ? 'equaliserStyle' : 'repeaterStyle';
           let t = isEq ? (oos ? eof_ : ef) : (oos ? rof : rf);
-          t += `      <Folder>
-        <name>${xmlEscape(sn)}</name>
-`;
+          t += '      <Folder>\n        <name>' + xmlEscape(sn) + '</name>\n';
           t += makePointPM(pts, sid);
-          t += '      </Folder>
-';
+          t += '      </Folder>\n';
           if (isEq) { if (oos) eof_=t; else ef=t; }
-          else      { if (oos) rof=t;  else rf=t; }
+          else      { if (oos) rof=t; else rf=t; }
         }
       }
     }
-    lf+='    </Folder>
-'; rf+='    </Folder>
-'; ef+='    </Folder>
-';
-    of+='    </Folder>
-'; rof+='    </Folder>
-'; eof_+='    </Folder>
-';
-    const inuse = '  <Folder>
-    <name>IN-USE</name>
-' + lf + rf + ef + '  </Folder>
-';
-    const oss   = '  <Folder>
-    <name>OSS</name>
-'    + of + rof + eof_ + '  </Folder>
-';
+    lf+='    </Folder>\n'; rf+='    </Folder>\n'; ef+='    </Folder>\n';
+    of_+='    </Folder>\n'; rof+='    </Folder>\n'; eof_+='    </Folder>\n';
+    const inuse = '  <Folder>\n    <name>IN-USE</name>\n' + lf + rf + ef + '  </Folder>\n';
+    const oss   = '  <Folder>\n    <name>OSS</name>\n'    + of_ + rof + eof_ + '  </Folder>\n';
     folderXml = inuse + oss;
   } else {
     for (const sn of selectedNames) {
-      folderXml += `  <Folder>
-    <name>${xmlEscape(sn)}</name>
-`;
+      folderXml += '  <Folder>\n    <name>' + xmlEscape(sn) + '</name>\n';
       if (lineData[sn])    folderXml += makeLinePM(sn, lineData[sn], 'lineStyle');
       if (lineOssData[sn]) folderXml += makeLinePM(sn, lineOssData[sn], 'lineOssStyle');
       if (pointData[sn]) {
         for (const [ft, pts] of Object.entries(pointData[sn])) {
           const sid = ft.toLowerCase().includes('equaliser') ? 'equaliserStyle' : 'repeaterStyle';
-          folderXml += `    <Folder>
-      <name>${xmlEscape(ft)}</name>
-`;
+          folderXml += '    <Folder>\n      <name>' + xmlEscape(ft) + '</name>\n';
           folderXml += makePointPM(pts, sid);
           folderXml += '    </Folder>
 ';
@@ -966,16 +932,16 @@ ${folderXml}</Document>
 </kml>`;
 }
 
-// ===== 初期化 =====
+// ===== \u521d\u671f\u5316 =====
 function initPyodide() {
-  document.getElementById('loading').style.display = 'none';
-  log('初期化完了');
+  const el = document.getElementById('loading');
+  if (el) el.style.display = 'none';
 }
 
-// ===== XML読み込み =====
+// ===== XML\u8aad\u307f\u8fbc\u307f =====
 async function loadXML() {
   logClear();
-  log('─── 読み込み開始 ───');
+  log('\u2500\u2500\u2500 \u8aad\u307f\u8fbc\u307f\u958b\u59cb \u2500\u2500\u2500');
   allNames = [];
   selectedNames.clear();
   lineNames.clear();
@@ -991,7 +957,7 @@ async function loadXML() {
   ];
 
   if (allFiles.length === 0) {
-    log('[エラー] XMLファイルが選択されていません');
+    log('[\u30a8\u30e9\u30fc] XML\u30d5\u30a1\u30a4\u30eb\u304c\u9078\u629e\u3055\u308c\u3066\u3044\u307e\u305b\u3093');
     return;
   }
 
@@ -1004,10 +970,10 @@ async function loadXML() {
     const doc = parser.parseFromString(text, 'text/xml');
     const records = doc.querySelectorAll(':root > *');
     const kindLabel = {fibre:'Fibre','fibre-oss':'Fibre(OSS)',rep:'Repeater',eq:'Equaliser'}[kind]||kind;
-    log(`[${kindLabel}] ${file.name} → ${records.length}件`);
+    log(`[${kindLabel}] ${file.name} \u2192 ${records.length}\u4ef6`);
 
     records.forEach(rec => {
-      const name = rec.querySelector('SystemName')?.textContent?.trimStart() || '（名称なし）';
+      const name = rec.querySelector('SystemName')?.textContent?.trimStart() || '\uff08\u540d\u79f0\u306a\u3057\uff09';
       if (!allNames.includes(name)) allNames.push(name);
       if (kind === 'fibre') lineNames.add(name);
       if (kind === 'fibre-oss') lineOssNames.add(name);
@@ -1021,21 +987,21 @@ async function loadXML() {
   allNames.sort();
   const subtotal = lineNames.size + lineOssNames.size + repNames.size + eqNames.size;
   const duplicates = subtotal - allNames.length;
-  log('─── System Name集計 ───');
+  log('\u2500\u2500\u2500 System Name\u96c6\u8a08 \u2500\u2500\u2500');
   log(`Cable      : ${String(lineNames.size).padStart(4)} System`);
   log(`Cable(OSS) : ${String(lineOssNames.size).padStart(4)} System`);
   log(`Repeater   : ${String(repNames.size).padStart(4)} System`);
   log(`Equaliser  : ${String(eqNames.size).padStart(4)} System`);
-  log(`小計（延べ）: ${subtotal}件`);
-  log(`うち複数種別に存在するSystem: ${duplicates}件`);
-  log(`重複排除後: ${allNames.length}件`);
-  log('─'.repeat(40));
-  log(`System Name合計: ${allNames.length}件`);
-  log('※件数はGDO_GEOMETRY解析前の概算です。KML生成時に正確に処理されます。');
-  log('読み込み完了');
+  log(`\u5c0f\u8a08\uff08\u5ef6\u3079\uff09: ${subtotal}\u4ef6`);
+  log(`\u3046\u3061\u8907\u6570\u7a2e\u5225\u306b\u5b58\u5728\u3059\u308bSystem: ${duplicates}\u4ef6`);
+  log(`\u91cd\u8907\u6392\u9664\u5f8c: ${allNames.length}\u4ef6`);
+  log('\u2500'.repeat(40));
+  log(`System Name\u5408\u8a08: ${allNames.length}\u4ef6`);
+  log('\u203b\u4ef6\u6570\u306fGDO_GEOMETRY\u89e3\u6790\u524d\u306e\u6982\u7b97\u3067\u3059\u3002KML\u751f\u6210\u6642\u306b\u6b63\u78ba\u306b\u51e6\u7406\u3055\u308c\u307e\u3059\u3002');
+  log('\u8aad\u307f\u8fbc\u307f\u5b8c\u4e86');
   hideProgress('load');
   renderList();
-  // 読み込み完了後にALL選択
+  // \u8aad\u307f\u8fbc\u307f\u5b8c\u4e86\u5f8c\u306bALL\u9078\u629e
   allNames.forEach(n => selectedNames.add(n));
   renderList();
   updateSelCount();
@@ -1044,16 +1010,16 @@ async function loadXML() {
   document.getElementById('btn-show-map').disabled = false;
 }
 
-// ===== RGB→KML色変換 =====
+// ===== RGB\u2192KML\u8272\u5909\u63db =====
 function rgbToKml(hex) {
   const r = hex.slice(1,3), g = hex.slice(3,5), b = hex.slice(5,7);
   return `ff${b}${g}${r}`;
 }
 
-// ===== KML生成 =====
+// ===== KML\u751f\u6210 =====
 async function generateKML(doDownload=true) {
   if (selectedNames.size === 0) {
-    alert('System Nameを選択してください');
+    alert('System Name\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044');
     return;
   }
   const outName = document.getElementById('out-name').value.trim() || 'GeoCable_KML_Generator_Web';
@@ -1072,10 +1038,10 @@ async function generateKML(doDownload=true) {
 
   const selected = [...selectedNames];
   showProgress('gen', selected.length, selected.length);
-  document.getElementById('prog-gen-text').textContent = 'KML生成中... しばらくお待ちください';
-  log('─── KML生成中 ───');
+  document.getElementById('prog-gen-text').textContent = 'KML\u751f\u6210\u4e2d... \u3057\u3070\u3089\u304f\u304a\u5f85\u3061\u304f\u3060\u3055\u3044';
+  log('\u2500\u2500\u2500 KML\u751f\u6210\u4e2d \u2500\u2500\u2500');
 
-  // JS実装でKML生成
+  // JS\u5b9f\u88c5\u3067KML\u751f\u6210
   const xmlTexts = {};
   for (const kind of ['fibre', 'fibre-oss', 'rep', 'eq']) {
     xmlTexts[kind] = [];
@@ -1092,9 +1058,9 @@ async function generateKML(doDownload=true) {
   });
 
   hideProgress('gen');
-  log(`KML生成完了 (${selected.length}件)`);
+  log(`KML\u751f\u6210\u5b8c\u4e86 (${selected.length}\u4ef6)`);
 
-  // ダウンロード＆地図表示用に保持
+  // \u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\uff06\u5730\u56f3\u8868\u793a\u7528\u306b\u4fdd\u6301
   if (doDownload) {
     const blob = new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'});
     const url = URL.createObjectURL(blob);
@@ -1102,31 +1068,31 @@ async function generateKML(doDownload=true) {
     a.href = url;
     a.download = outName + '.kml';
     a.click();
-    log(`ダウンロード: ${outName}.kml`);
+    log(`\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9: ${outName}.kml`);
   }
 
-  // 地図表示ボタンを追加
+  // \u5730\u56f3\u8868\u793a\u30dc\u30bf\u30f3\u3092\u8ffd\u52a0
   window._lastKmlContent = kmlContent;
   window._lastKmlUrl = URL.createObjectURL(new Blob([kmlContent], {type: 'application/vnd.google-earth.kml+xml'}));
-  log('「地図で表示」ボタンで地図に表示できます');
-  // MAP用データ準備完了
+  log('\u300c\u5730\u56f3\u3067\u8868\u793a\u300d\u30dc\u30bf\u30f3\u3067\u5730\u56f3\u306b\u8868\u793a\u3067\u304d\u307e\u3059');
+  // MAP\u7528\u30c7\u30fc\u30bf\u6e96\u5099\u5b8c\u4e86
 }
 
-// ===== KML生成＋MAP =====
+// ===== KML\u751f\u6210\uff0bMAP =====
 async function generateKMLandMap() {
   await generateKML(true);
   if (window._lastKmlContent) showMap();
 }
 
-// ===== MAPのみ =====
+// ===== MAP\u306e\u307f =====
 async function generateMapOnly() {
-  await generateKML(false);  // ダウンロードしない
+  await generateKML(false);  // \u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u3057\u306a\u3044
   if (window._lastKmlContent) showMap();
 }
 
-// ===== 地図表示 =====
-let map = null;
-let kmlLayer = null;
+// ===== \u5730\u56f3\u8868\u793a =====
+var map = null;
+var kmlLayer = null;
 
 function showMap() {
   const mapArea = document.getElementById('map-area');
@@ -1137,7 +1103,7 @@ function showMap() {
     map = L.map('map').setView([20, 120], 3);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
+      attribution: '\u00a9 OpenStreetMap contributors',
       maxZoom: 18
     }).addTo(map);
 
@@ -1147,11 +1113,11 @@ function showMap() {
     map.removeLayer(kmlLayer);
   }
 
-  // KMLからスタイル・フォルダ情報を読み取る
+  // KML\u304b\u3089\u30b9\u30bf\u30a4\u30eb\u30fb\u30d5\u30a9\u30eb\u30c0\u60c5\u5831\u3092\u8aad\u307f\u53d6\u308b
   const parser = new DOMParser();
   const kmlDoc = parser.parseFromString(window._lastKmlContent, 'text/xml');
 
-  // KML色変換 AABBGGRR → #RRGGBB
+  // KML\u8272\u5909\u63db AABBGGRR \u2192 #RRGGBB
   function kmlColorToHex(kmlColor) {
     if (!kmlColor || kmlColor.length < 8) return '#ffffff';
     const r = kmlColor.slice(6, 8);
@@ -1160,7 +1126,7 @@ function showMap() {
     return '#' + r + g + b;
   }
 
-  // Styleを読み取る
+  // Style\u3092\u8aad\u307f\u53d6\u308b
   const styles = {};
   kmlDoc.querySelectorAll('Style').forEach(style => {
     const id = style.getAttribute('id');
@@ -1177,7 +1143,7 @@ function showMap() {
     };
   });
 
-  // PlacemarkのstyleUrl→styleIdマッピング
+  // Placemark\u306estyleUrl\u2192styleId\u30de\u30c3\u30d4\u30f3\u30b0
   const placemarkStyles = {};
   kmlDoc.querySelectorAll('Placemark').forEach(pm => {
     const name = pm.querySelector('name')?.textContent || '';
@@ -1185,7 +1151,7 @@ function showMap() {
     placemarkStyles[name] = styleUrl;
   });
 
-  // KMLを直接パースしてL.polyline/circleMarkerで描画（180°超の経度も対応）
+  // KML\u3092\u76f4\u63a5\u30d1\u30fc\u30b9\u3057\u3066L.polyline/circleMarker\u3067\u63cf\u753b\uff08180\u00b0\u8d85\u306e\u7d4c\u5ea6\u3082\u5bfe\u5fdc\uff09
   if (kmlLayer) { map.removeLayer(kmlLayer); kmlLayer = null; }
   kmlLayer = L.layerGroup();
   const bounds = [];
@@ -1205,13 +1171,13 @@ function showMap() {
         return [lat, lon];
       }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
       if (latlngs.length >= 2) {
-        // 日付変更線をまたぐ点で分割し、各セグメントを個別に描画
+        // \u65e5\u4ed8\u5909\u66f4\u7dda\u3092\u307e\u305f\u3050\u70b9\u3067\u5206\u5272\u3057\u3001\u5404\u30bb\u30b0\u30e1\u30f3\u30c8\u3092\u500b\u5225\u306b\u63cf\u753b
         const segments = [[]];
         for (let i = 0; i < latlngs.length; i++) {
           segments[segments.length-1].push(latlngs[i]);
           if (i < latlngs.length-1) {
             if (Math.abs(latlngs[i+1][1] - latlngs[i][1]) > 180) {
-              segments.push([]); // またぐ点で切断
+              segments.push([]); // \u307e\u305f\u3050\u70b9\u3067\u5207\u65ad
             }
           }
         }
@@ -1264,8 +1230,20 @@ function closeMap() {
   document.getElementById('map-area').style.display = 'none';
 }
 
-// ===== 起動 =====
-window.addEventListener('load', initPyodide);
+// ===== \u8d77\u52d5 =====
+// \u5373\u6642\u5b9f\u884c
+(function() {
+  function tryInit() {
+    const el = document.getElementById('loading');
+    if (el) {
+      el.style.display = 'none';
+      log('\u521d\u671f\u5316\u5b8c\u4e86');
+    } else {
+      setTimeout(tryInit, 50);
+    }
+  }
+  tryInit();
+})();
 </script>
 </body>
 </html>
